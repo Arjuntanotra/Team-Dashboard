@@ -313,12 +313,17 @@ export default function TeamDashboard() {
   // Loading State
   if (currentView === "loading") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
-          <RefreshCw className="w-16 h-16 text-purple-300 animate-spin mx-auto mb-4" />
-          <p className="text-white text-xl">
-            Loading team data from Google Sheets...
-          </p>
+          <div className="bg-white rounded-2xl p-8 shadow-xl">
+            <RefreshCw className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
+            <p className="text-slate-700 text-xl font-semibold">
+              Loading Dashboard...
+            </p>
+            <p className="text-slate-500 text-sm mt-2">
+              Fetching team data from Google Sheets
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -327,19 +332,19 @@ export default function TeamDashboard() {
   // Error State
   if (currentView === "error") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-red-500/20 backdrop-blur-lg rounded-2xl p-8 border border-red-500/50">
-            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white text-center mb-4">
+          <div className="bg-white rounded-2xl p-8 border border-red-200 shadow-xl">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-slate-800 text-center mb-4">
               Error Loading Data
             </h2>
-            <p className="text-red-200 text-center mb-6">{error}</p>
-            <div className="bg-slate-800/50 rounded-lg p-6 mb-6">
-              <h3 className="text-white font-semibold mb-3">
+            <p className="text-red-600 text-center mb-6">{error}</p>
+            <div className="bg-slate-50 rounded-lg p-6 mb-6 border border-slate-200">
+              <h3 className="text-slate-800 font-semibold mb-3">
                 Setup Instructions:
               </h3>
-              <ol className="text-purple-200 space-y-2 list-decimal list-inside">
+              <ol className="text-slate-600 space-y-2 list-decimal list-inside">
                 <li>
                   Open your Google Sheet and go to File → Share → Publish to web
                 </li>
@@ -353,14 +358,14 @@ export default function TeamDashboard() {
                 </li>
                 <li>
                   Replace{" "}
-                  <code className="bg-slate-700 px-2 py-1 rounded">
+                  <code className="bg-gray-200 px-2 py-1 rounded">
                     YOUR_GOOGLE_SHEET_ID_HERE
                   </code>{" "}
                   in the code with your actual Sheet ID
                 </li>
                 <li>
                   Update{" "}
-                  <code className="bg-slate-700 px-2 py-1 rounded">
+                  <code className="bg-gray-200 px-2 py-1 rounded">
                     SHEET_NAME
                   </code>{" "}
                   if your tab name is different from "Sheet1"
@@ -373,7 +378,7 @@ export default function TeamDashboard() {
             </div>
             <button
               onClick={loadExcelData}
-              className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-5 h-5" />
               Retry Loading
@@ -385,16 +390,16 @@ export default function TeamDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">
-                Team Status Dashboard 
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-2">
+                Team Status Dashboard
               </h1>
-              <div className="flex items-center gap-2 text-purple-200">
+              <div className="flex items-center gap-2 text-slate-600">
                 {breadcrumb.map((crumb, idx) => (
                   <span key={idx} className="flex items-center">
                     {idx > 0 && <span className="mx-2">/</span>}
@@ -402,8 +407,8 @@ export default function TeamDashboard() {
                       onClick={() => handleBreadcrumbClick(idx)}
                       className={`${
                         idx < breadcrumb.length - 1
-                          ? "cursor-pointer hover:text-white hover:underline"
-                          : "text-white"
+                          ? "cursor-pointer hover:text-blue-600 hover:underline"
+                          : "text-slate-900 font-semibold"
                       } transition-colors`}
                     >
                       {crumb}
@@ -416,20 +421,20 @@ export default function TeamDashboard() {
               <button
                 onClick={loadExcelData}
                 disabled={isRefreshing}
-                className="mb-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 ml-auto"
+                className="mb-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-auto font-medium"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
                 />
-                {isRefreshing ? "Refreshing..." : "Refresh"}
+                {isRefreshing ? "Refreshing..." : "Refresh Data"}
               </button>
               {lastUpdated && (
-                <>
-                  <p className="text-purple-200 text-sm">Last Updated</p>
-                  <p className="text-white font-medium">
+                <div className="bg-slate-50 px-3 py-1 rounded-lg">
+                  <p className="text-slate-500 text-xs">Last Updated</p>
+                  <p className="text-slate-700 font-semibold text-sm">
                     {lastUpdated.toLocaleTimeString()}
                   </p>
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -439,7 +444,7 @@ export default function TeamDashboard() {
         {currentView !== "managers" && (
           <button
             onClick={handleBack}
-            className="mb-6 flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+            className="mb-6 flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg border border-slate-300 shadow-sm hover:shadow-md transition-all font-medium"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -457,18 +462,23 @@ export default function TeamDashboard() {
                   setCurrentView("team");
                   setBreadcrumb(["Managers", manager.name]);
                 }}
-                className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 transition-transform"
+                className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 hover:shadow-2xl transition-all border border-blue-400"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <Users className="w-12 h-12 text-white" />
-                  <span className="text-white/80 text-sm">{manager.role}</span>
+                  <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                    <Users className="w-10 h-10 text-white" />
+                  </div>
+                  <span className="text-blue-50 text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
+                    {manager.role}
+                  </span>
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-2">
                   {manager.name}
                 </h3>
-                <p className="text-purple-100">
-                  {manager.teamCount} Team Members
-                </p>
+                <div className="flex items-center gap-2 text-blue-50">
+                  <Users className="w-4 h-4" />
+                  <p>{manager.teamCount} Team Members</p>
+                </div>
               </div>
             ))}
           </div>
@@ -485,16 +495,23 @@ export default function TeamDashboard() {
                   setCurrentView("projects");
                   setBreadcrumb(["Managers", selectedManager, member.name]);
                 }}
-                className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 transition-transform"
+                className="bg-white rounded-xl p-6 shadow-lg border border-slate-200 cursor-pointer hover:scale-105 hover:shadow-2xl hover:border-blue-300 transition-all"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <Users className="w-10 h-10 text-white" />
-                  <span className="text-white/80 text-sm">{member.role}</span>
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-xl">
+                    <Users className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <span className="text-slate-600 text-sm font-medium bg-slate-100 px-3 py-1 rounded-full">
+                    {member.role}
+                  </span>
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">
+                <h3 className="text-xl font-bold text-slate-800 mb-2">
                   {member.name}
                 </h3>
-                <p className="text-blue-100">{member.projectCount} Projects</p>
+                <div className="flex items-center gap-1 text-slate-600">
+                  <FolderOpen className="w-4 h-4" />
+                  <p>{member.projectCount} Projects</p>
+                </div>
               </div>
             ))}
           </div>
@@ -516,28 +533,33 @@ export default function TeamDashboard() {
                     project.name,
                   ]);
                 }}
-                className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 cursor-pointer hover:bg-white/15 transition-colors"
+                className="bg-white rounded-xl p-6 border border-slate-200 cursor-pointer hover:shadow-xl hover:border-blue-300 transition-all shadow-md"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <FolderOpen className="w-10 h-10 text-purple-300" />
+                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-3 rounded-xl">
+                    <FolderOpen className="w-8 h-8 text-slate-700" />
+                  </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs text-white ${getStatusColor(
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(
                       project.status
                     )}`}
                   >
                     {project.status}
                   </span>
                 </div>
-                <h3 className="text-xl font-bold text-white mb-3">
+                <h3 className="text-xl font-bold text-slate-800 mb-4">
                   {project.name}
                 </h3>
-                <div className="flex items-center gap-4 text-purple-200">
-                  <span>
-                    {project.completedTasks}/{project.taskCount} Tasks
-                  </span>
-                  <div className="flex-1 bg-white/10 rounded-full h-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm text-slate-600">
+                    <span className="font-medium">Progress</span>
+                    <span className="font-semibold">
+                      {project.completedTasks}/{project.taskCount} Tasks
+                    </span>
+                  </div>
+                  <div className="bg-slate-200 rounded-full h-2.5 overflow-hidden">
                     <div
-                      className="bg-green-500 h-2 rounded-full transition-all"
+                      className="bg-gradient-to-r from-green-500 to-green-600 h-2.5 rounded-full transition-all shadow-sm"
                       style={{
                         width: `${
                           (project.completedTasks / project.taskCount) * 100
@@ -545,6 +567,9 @@ export default function TeamDashboard() {
                       }}
                     />
                   </div>
+                  <p className="text-xs text-slate-500 text-right">
+                    {Math.round((project.completedTasks / project.taskCount) * 100)}% Complete
+                  </p>
                 </div>
               </div>
             ))}
@@ -553,76 +578,89 @@ export default function TeamDashboard() {
 
         {/* Tasks View */}
         {currentView === "tasks" && selectedProject && selectedMember && (
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
-            <h2 className="text-2xl font-bold text-white mb-6">Tasks</h2>
+          <div className="bg-white rounded-xl p-8 border border-slate-200 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-800">Project Tasks</h2>
+              <div className="bg-blue-50 px-4 py-2 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  Total: <span className="font-bold text-blue-600">{getTasks(selectedMember, selectedProject).length}</span> Tasks
+                </p>
+              </div>
+            </div>
             <div className="space-y-4">
               {getTasks(selectedMember, selectedProject).map((task, idx) => {
                 const overdue = isOverdue(task.deadline, task.completedDate);
                 return (
                   <div
                     key={idx}
-                    className="bg-white/5 rounded-lg p-5 hover:bg-white/10 transition-colors"
+                    className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-6 hover:shadow-lg transition-all border border-slate-200 hover:border-blue-300"
                   >
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-white mb-2">
+                        <h3 className="text-lg font-bold text-slate-800 mb-3">
                           {task.name}
                         </h3>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <span
-                            className={`inline-block px-3 py-1 rounded-full text-xs text-white ${getStatusColor(
+                            className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(
                               task.status
                             )}`}
                           >
                             {task.status}
                           </span>
-                          <span className="inline-block px-3 py-1 rounded-full text-xs text-white bg-purple-600">
-                            {task.priority}
+                          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-slate-700 shadow-sm">
+                            Priority: {task.priority}
                           </span>
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-purple-300" />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 bg-white rounded-lg p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-blue-100 p-2 rounded-lg">
+                          <Clock className="w-5 h-5 text-blue-600" />
+                        </div>
                         <div>
-                          <p className="text-xs text-purple-200">Deadline</p>
-                          <p className="text-white font-medium">
+                          <p className="text-xs text-slate-500 font-medium">Deadline</p>
+                          <p className="text-slate-800 font-bold">
                             {task.deadline}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-400" />
+                      <div className="flex items-center gap-3">
+                        <div className="bg-green-100 p-2 rounded-lg">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        </div>
                         <div>
-                          <p className="text-xs text-purple-200">
-                            Completed Date
+                          <p className="text-xs text-slate-500 font-medium">
+                            Completed
                           </p>
                           <p
-                            className={`font-medium ${
+                            className={`font-bold ${
                               task.completedDate === "-"
-                                ? "text-gray-400"
-                                : "text-white"
+                                ? "text-slate-400"
+                                : "text-slate-800"
                             }`}
                           >
                             {task.completedDate}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {overdue ? (
-                          <AlertCircle className="w-4 h-4 text-red-400" />
-                        ) : (
-                          <CheckCircle className="w-4 h-4 text-purple-300" />
-                        )}
+                      <div className="flex items-center gap-3">
+                        <div className={`${overdue ? 'bg-red-100' : 'bg-green-100'} p-2 rounded-lg`}>
+                          {overdue ? (
+                            <AlertCircle className="w-5 h-5 text-red-600" />
+                          ) : (
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          )}
+                        </div>
                         <div>
-                          <p className="text-xs text-purple-200">Status</p>
+                          <p className="text-xs text-slate-500 font-medium">Delivery Status</p>
                           <p
-                            className={`font-medium ${
-                              overdue ? "text-red-400" : "text-green-400"
+                            className={`font-bold ${
+                              overdue ? "text-red-600" : "text-green-600"
                             }`}
                           >
-                            {overdue ? "Overdue" : "On Time"}
+                            {overdue ? "⚠️ Overdue" : "✓ On Time"}
                           </p>
                         </div>
                       </div>
