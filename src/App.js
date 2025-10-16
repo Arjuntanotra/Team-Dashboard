@@ -207,54 +207,91 @@ export default function TeamDashboard() {
   };
 
   const getMemberProjectTimeline = (memberName) => {
-    if (!excelData) return [];
+    if (!excelData) return { timelineData: [], projects: [] };
     
     const projectsMap = {};
     
+    // Collect all tasks for each project
     excelData.forEach((row) => {
       const member = row.TeamMember || row.Member || row.Name;
       const project = row.Project || row.ProjectName;
+      const startDate = row.StartDate;
       const deadline = row.Deadline || row.DueDate;
       
-      if (member === memberName && project && deadline) {
-        const formattedDate = formatExcelDate(deadline);
-        const date = parseDate(formattedDate);
-        if (date) {
-          const dateKey = date.toISOString().split('T')[0];
-          
-          if (!projectsMap[project]) {
-            projectsMap[project] = {};
-          }
-          
-          if (!projectsMap[project][dateKey]) {
-            projectsMap[project][dateKey] = 0;
-          }
-          
-          projectsMap[project][dateKey]++;
+      if (member === memberName && project) {
+        if (!projectsMap[project]) {
+          projectsMap[project] = {
+            name: project,
+            startDates: [],
+            endDates: [],
+            tasks: [],
+          };
         }
+        
+        if (startDate) {
+          const formattedStart = formatExcelDate(startDate);
+          const parsedStart = parseDate(formattedStart);
+          if (parsedStart) {
+            projectsMap[project].startDates.push(parsedStart.getTime());
+          }
+        }
+        
+        if (deadline) {
+          const formattedDeadline = formatExcelDate(deadline);
+          const parsedDeadline = parseDate(formattedDeadline);
+          if (parsedDeadline) {
+            projectsMap[project].endDates.push(parsedDeadline.getTime());
+          }
+        }
+        
+        projectsMap[project].tasks.push(row.Task || row.TaskName || 'Task');
       }
     });
 
+    // Calculate project timeline bars
     const timelineData = [];
-    const allDates = new Set();
+    const projects = Object.keys(projectsMap);
     
-    Object.keys(projectsMap).forEach(project => {
-      Object.keys(projectsMap[project]).forEach(date => {
-        allDates.add(date);
-      });
+    // Find global min and max dates for timeline scale
+    let globalMinDate = Infinity;
+    let globalMaxDate = -Infinity;
+    
+    projects.forEach(project => {
+      const data = projectsMap[project];
+      if (data.startDates.length > 0) {
+        const minStart = Math.min(...data.startDates);
+        const maxEnd = Math.max(...data.endDates);
+        globalMinDate = Math.min(globalMinDate, minStart);
+        globalMaxDate = Math.max(globalMaxDate, maxEnd);
+      }
     });
     
-    const sortedDates = Array.from(allDates).sort();
-    
-    sortedDates.forEach(date => {
-      const dataPoint = { date: new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) };
-      Object.keys(projectsMap).forEach(project => {
-        dataPoint[project] = projectsMap[project][date] || 0;
-      });
-      timelineData.push(dataPoint);
+    // Create timeline data for each project
+    projects.forEach(project => {
+      const data = projectsMap[project];
+      
+      if (data.startDates.length > 0 && data.endDates.length > 0) {
+        const projectStart = Math.min(...data.startDates);
+        const projectEnd = Math.max(...data.endDates);
+        
+        timelineData.push({
+          project: project,
+          start: projectStart,
+          end: projectEnd,
+          startDate: new Date(projectStart),
+          endDate: new Date(projectEnd),
+          duration: Math.ceil((projectEnd - projectStart) / (1000 * 60 * 60 * 24)), // days
+          taskCount: data.tasks.length,
+        });
+      }
     });
-
-    return { timelineData, projects: Object.keys(projectsMap) };
+    
+    return { 
+      timelineData: timelineData.sort((a, b) => a.start - b.start),
+      projects,
+      globalMinDate: new Date(globalMinDate),
+      globalMaxDate: new Date(globalMaxDate),
+    };
   };
 
   const getProjectTasks = (memberName, projectName) => {
@@ -467,7 +504,7 @@ export default function TeamDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title="Team Management Dashboard" subtitle="Procurement Team" />
+          <Header title="Team Management Dashboard" subtitle="Select a manager to view their team overview" />
           <Breadcrumb />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -667,8 +704,27 @@ export default function TeamDashboard() {
 
   // Member Profile Page
   if (currentView === "member" && selectedMember) {
-    const { timelineData, projects } = getMemberProjectTimeline(selectedMember);
+    const { timelineData, projects, globalMinDate, globalMaxDate } = getMemberProjectTimeline(selectedMember);
     const memberData = teamData.find(m => m.name === selectedMember);
+
+    // Generate week labels for X-axis
+    const generateWeekLabels = () => {
+      if (!globalMinDate || !globalMaxDate) return [];
+      
+      const labels = [];
+      const currentDate = new Date(globalMinDate);
+      
+      while (currentDate <= globalMaxDate) {
+        const weekNum = Math.ceil((currentDate.getDate()) / 7);
+        const monthName = currentDate.toLocaleDateString('en-US', { month: 'short' });
+        labels.push(`${monthName} Wk-${weekNum}`);
+        currentDate.setDate(currentDate.getDate() + 7);
+      }
+      
+      return labels;
+    };
+
+    const weekLabels = generateWeekLabels();
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
@@ -696,39 +752,90 @@ export default function TeamDashboard() {
             </div>
           </div>
 
-          {/* Bar Chart */}
+          {/* Gantt Chart Style Timeline */}
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-6">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">Project Timeline</h2>
-            <p className="text-slate-600 mb-6">Click on any bar to view detailed tasks for that project</p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Project Timeline (Gantt View)</h2>
+            <p className="text-slate-600 mb-6">Horizontal timeline showing project duration - Click on any bar to view detailed tasks</p>
             
             {timelineData.length > 0 ? (
-              <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={timelineData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis label={{ value: 'Number of Tasks', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip />
-                    <Legend />
-                    {projects.map((project, idx) => (
-                      <Bar
-                        key={project}
-                        dataKey={project}
-                        fill={COLORS[idx % COLORS.length]}
-                        onClick={(data) => {
-                          setSelectedProject(project);
-                          setCurrentView("tasks");
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="overflow-x-auto">
+                <div className="min-w-[800px]">
+                  {/* Timeline Header with Week Labels */}
+                  <div className="flex mb-6 pb-4 border-b-2 border-slate-300">
+                    <div className="w-48 flex-shrink-0 font-semibold text-slate-700">Projects</div>
+                    <div className="flex-1 flex justify-between text-xs text-slate-600">
+                      {weekLabels.map((label, idx) => (
+                        <div key={idx} className="flex-1 text-center border-l border-slate-200 px-1">
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Project Timeline Bars */}
+                  <div className="space-y-4">
+                    {timelineData.map((project, idx) => {
+                      const totalDuration = globalMaxDate.getTime() - globalMinDate.getTime();
+                      const projectStartOffset = ((project.start - globalMinDate.getTime()) / totalDuration) * 100;
+                      const projectWidth = ((project.end - project.start) / totalDuration) * 100;
+                      
+                      return (
+                        <div 
+                          key={idx}
+                          className="flex items-center group"
+                        >
+                          <div className="w-48 flex-shrink-0 pr-4">
+                            <div className="font-semibold text-slate-800 text-sm truncate">{project.project}</div>
+                            <div className="text-xs text-slate-500">{project.taskCount} tasks</div>
+                          </div>
+                          
+                          <div className="flex-1 relative h-12">
+                            {/* Grid lines */}
+                            <div className="absolute inset-0 flex">
+                              {weekLabels.map((_, wIdx) => (
+                                <div key={wIdx} className="flex-1 border-l border-slate-100"></div>
+                              ))}
+                            </div>
+                            
+                            {/* Project Bar */}
+                            <div
+                              onClick={() => {
+                                setSelectedProject(project.project);
+                                setCurrentView("tasks");
+                              }}
+                              className="absolute top-1 h-10 rounded-lg cursor-pointer transition-all hover:shadow-lg hover:scale-105"
+                              style={{
+                                left: `${projectStartOffset}%`,
+                                width: `${projectWidth}%`,
+                                backgroundColor: COLORS[idx % COLORS.length],
+                              }}
+                            >
+                              <div className="h-full flex items-center justify-center px-2">
+                                <span className="text-white text-xs font-semibold truncate">
+                                  {project.startDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - {project.endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                </span>
+                              </div>
+                              
+                              {/* Tooltip on hover */}
+                              <div className="hidden group-hover:block absolute -top-16 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap z-10 shadow-xl">
+                                <div className="font-semibold">{project.project}</div>
+                                <div>Duration: {project.duration} days</div>
+                                <div>Tasks: {project.taskCount}</div>
+                                <div className="text-blue-300 mt-1">Click to view tasks →</div>
+                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-slate-800"></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-center py-12 text-slate-500">
                 <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>No timeline data available</p>
+                <p>No timeline data available. Please ensure tasks have Start Date and Deadline.</p>
               </div>
             )}
           </div>
