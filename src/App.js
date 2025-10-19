@@ -359,6 +359,22 @@ export default function TeamDashboard() {
     setSelectedProject(null);
   };
 
+  const navigateToAllMembers = () => {
+    setCurrentView("all-members");
+    setSelectedMember(null);
+    setSelectedProject(null);
+  };
+
+  const navigateToAllProjects = () => {
+    setCurrentView("all-projects");
+  };
+
+  const navigateToAllTasks = () => {
+    setCurrentView("all-tasks");
+    setSelectedMember(null);
+    setSelectedProject(null);
+  };
+
   // Breadcrumb Component
   const Breadcrumb = () => {
     return (
@@ -370,8 +386,8 @@ export default function TeamDashboard() {
           <Home className="w-4 h-4" />
           Dashboard
         </span>
-        
-        {selectedManager && (
+
+        {selectedManager && currentView !== "all-members" && currentView !== "all-projects" && currentView !== "all-completions" && !(currentView === "all-tasks" && !selectedProject) && (
           <>
             <ChevronRight className="w-4 h-4" />
             <span
@@ -384,8 +400,27 @@ export default function TeamDashboard() {
             </span>
           </>
         )}
-        
-        {selectedMember && (
+
+        {(selectedManager && (currentView === "all-members" || currentView === "all-projects" || currentView === "all-completions" || (currentView === "all-tasks" && !selectedProject))) && (
+          <>
+            <ChevronRight className="w-4 h-4" />
+            <span
+              onClick={() => navigateToManager(selectedManager)}
+              className="cursor-pointer hover:text-blue-600 hover:underline text-slate-900 font-semibold transition-colors"
+            >
+              {selectedManager}
+            </span>
+            <ChevronRight className="w-4 h-4" />
+            <span className="text-slate-900 font-semibold">
+              {currentView === "all-members" ? "All Members" :
+               currentView === "all-projects" ? "All Projects" :
+               currentView === "all-completions" ? "All Completions" :
+               currentView === "all-tasks" ? "All Tasks" : "View"}
+            </span>
+          </>
+        )}
+
+        {selectedMember && currentView !== "all-members" && currentView !== "all-projects" && currentView !== "all-completions" && currentView !== "all-tasks" && (
           <>
             <ChevronRight className="w-4 h-4" />
             <span
@@ -401,7 +436,7 @@ export default function TeamDashboard() {
             </span>
           </>
         )}
-        
+
         {selectedProject && (
           <>
             <ChevronRight className="w-4 h-4" />
@@ -583,25 +618,37 @@ export default function TeamDashboard() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg text-white">
+            <div
+              onClick={navigateToAllMembers}
+              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+            >
               <Users className="w-10 h-10 mb-3 opacity-80" />
               <p className="text-blue-100 text-sm mb-1">Team Members</p>
               <p className="text-3xl font-bold">{teamData.length}</p>
             </div>
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg text-white">
+            <div
+              onClick={navigateToAllProjects}
+              className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+            >
               <FolderOpen className="w-10 h-10 mb-3 opacity-80" />
               <p className="text-purple-100 text-sm mb-1">Total Projects</p>
               <p className="text-3xl font-bold">{managerInfo?.projectCount || 0}</p>
             </div>
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 shadow-lg text-white">
+            <div
+              onClick={() => setCurrentView("all-completions")}
+              className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+            >
               <CheckCircle className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-green-100 text-sm mb-1">Total Tasks</p>
-              <p className="text-3xl font-bold">{totalTasks}</p>
-            </div>
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 shadow-lg text-white">
-              <BarChart3 className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-orange-100 text-sm mb-1">Completion Rate</p>
+              <p className="text-green-100 text-sm mb-1">Completion</p>
               <p className="text-3xl font-bold">{managerInfo?.percentage || 0}%</p>
+            </div>
+            <div
+              onClick={navigateToAllTasks}
+              className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+            >
+              <BarChart3 className="w-10 h-10 mb-3 opacity-80" />
+              <p className="text-orange-100 text-sm mb-1">Tasks</p>
+              <p className="text-3xl font-bold">{totalTasks}</p>
             </div>
           </div>
 
@@ -916,15 +963,15 @@ export default function TeamDashboard() {
                 <div className="space-y-6">
                   {tasks.map((task, idx) => {
                     const overdue = isOverdue(task.deadline, task.completedDate);
-                    const isCompleted = (task.status || "").toLowerCase().includes("complete") || 
+                    const isCompleted = (task.status || "").toLowerCase().includes("complete") ||
                                        (task.status || "").toLowerCase().includes("done");
-                    
+
                     return (
                       <div key={idx} className="relative pl-20">
                         <div className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
                           isCompleted ? 'bg-green-500' : 'bg-blue-500'
                         }`}></div>
-                        
+
                         <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-6 hover:shadow-lg transition-all border border-slate-200 hover:border-blue-300">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
@@ -939,7 +986,7 @@ export default function TeamDashboard() {
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 bg-white rounded-lg p-4">
                             <div className="flex items-center gap-3">
                               <div className="bg-blue-100 p-2 rounded-lg">
@@ -950,7 +997,7 @@ export default function TeamDashboard() {
                                 <p className="text-slate-800 font-bold text-sm">{task.startDate}</p>
                               </div>
                             </div>
-                            
+
                             <div className="flex items-center gap-3">
                               <div className="bg-orange-100 p-2 rounded-lg">
                                 <AlertCircle className="w-5 h-5 text-orange-600" />
@@ -960,7 +1007,7 @@ export default function TeamDashboard() {
                                 <p className="text-slate-800 font-bold text-sm">{task.deadline}</p>
                               </div>
                             </div>
-                            
+
                             <div className="flex items-center gap-3">
                               <div className="bg-green-100 p-2 rounded-lg">
                                 <CheckCircle className="w-5 h-5 text-green-600" />
@@ -972,7 +1019,7 @@ export default function TeamDashboard() {
                                 </p>
                               </div>
                             </div>
-                            
+
                             <div className="flex items-center gap-3">
                               <div className={`${overdue ? 'bg-red-100' : 'bg-green-100'} p-2 rounded-lg`}>
                                 {overdue ? (
@@ -996,6 +1043,479 @@ export default function TeamDashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // All Members View
+  if (currentView === "all-members" && selectedManager) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header title="All Team Members" subtitle={`${selectedManager}'s Team`} />
+          <Breadcrumb />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {teamData.map((member, idx) => (
+              <div
+                key={idx}
+                onClick={() => {
+                  setSelectedMember(member.name);
+                  setCurrentView("member");
+                }}
+                className="bg-white rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 hover:shadow-2xl transition-all border border-slate-200 hover:border-blue-300"
+              >
+                <div className="flex items-center gap-4 mb-4">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                  >
+                    <Users className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">{member.name}</h3>
+                    <p className="text-slate-500">{member.role}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Total Tasks</span>
+                    <span className="font-bold text-slate-800">{member.totalTasks}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Completed</span>
+                    <span className="font-bold text-green-600">{member.completedTasks}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Projects</span>
+                    <span className="font-bold text-purple-600">{member.projectCount}</span>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-slate-600">Progress</span>
+                    <span className="font-bold text-slate-800">{member.percentage}%</span>
+                  </div>
+                  <div className="bg-slate-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all"
+                      style={{ width: `${member.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // All Projects View
+  if (currentView === "all-projects" && selectedManager) {
+    // Get all unique projects for this manager's team
+    const projectsMap = {};
+    teamData.forEach(member => {
+      excelData.forEach((row) => {
+        const manager = row.Manager || row.ManagerName;
+        const memberName = row.TeamMember || row.Member || row.Name;
+        const project = row.Project || row.ProjectName;
+
+        if (manager === selectedManager && memberName === member.name && project) {
+          if (!projectsMap[project]) {
+            projectsMap[project] = {
+              name: project,
+              totalTasks: 0,
+              completedTasks: 0,
+              members: new Set(),
+              startDates: [],
+              endDates: [],
+            };
+          }
+          projectsMap[project].totalTasks++;
+          const status = (row.Status || "").toLowerCase();
+          if (status.includes("completed") || status.includes("complete") || status.includes("done")) {
+            projectsMap[project].completedTasks++;
+          }
+          projectsMap[project].members.add(memberName);
+
+          const startDate = row.StartDate;
+          const deadline = row.Deadline || row.DueDate;
+          if (startDate) projectsMap[project].startDates.push(parseDate(formatExcelDate(startDate)));
+          if (deadline) projectsMap[project].endDates.push(parseDate(formatExcelDate(deadline)));
+        }
+      });
+    });
+
+    const projectsData = Object.values(projectsMap);
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header title="All Projects" subtitle={`${selectedManager}'s Team Projects`} />
+          <Breadcrumb />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projectsData.map((project, idx) => (
+              <div
+                key={idx}
+                onClick={() => {
+                  setSelectedProject(project.name);
+                  setCurrentView("all-tasks");
+                }}
+                className="bg-white rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 hover:shadow-2xl transition-all border border-slate-200 hover:border-blue-300"
+              >
+                <div className="flex items-center gap-4 mb-4">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                  >
+                    <FolderOpen className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">{project.name}</h3>
+                    <p className="text-slate-500">{project.members.size} team members</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Total Tasks</span>
+                    <span className="font-bold text-slate-800">{project.totalTasks}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Completed</span>
+                    <span className="font-bold text-green-600">{project.completedTasks}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Progress</span>
+                    <span className="font-bold text-slate-800">{Math.round(project.totalTasks > 0 ? (project.completedTasks / project.totalTasks) * 100 : 0)}%</span>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <div className="bg-slate-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all"
+                      style={{ width: `${project.totalTasks > 0 ? (project.completedTasks / project.totalTasks) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1">
+                  {Array.from(project.members).map((memberName, memberIdx) => (
+                    <span key={memberIdx} className="inline-block px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full">
+                      {memberName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // All Completions View
+  if (currentView === "all-completions" && selectedManager) {
+    // Get all completed tasks with dates
+    const completedTasks = excelData.filter((row) => {
+      const manager = row.Manager || row.ManagerName;
+      const status = (row.Status || "").toLowerCase();
+      return manager === selectedManager && (status.includes("completed") || status.includes("complete") || status.includes("done"));
+    }).map((row) => {
+      const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate);
+      return {
+        taskName: row.Task || row.TaskName || "Unnamed Task",
+        memberName: row.TeamMember || row.Member || row.Name,
+        projectName: row.Project || row.ProjectName,
+        completedDate,
+        priority: row.Priority || "Medium",
+        startDate: formatExcelDate(row.StartDate),
+        deadline: formatExcelDate(row.Deadline || row.DueDate),
+      };
+    }).sort((a, b) => {
+      if (a.completedDate === "-" && b.completedDate === "-") return 0;
+      if (a.completedDate === "-") return 1;
+      if (b.completedDate === "-") return -1;
+      const dateA = parseDate(a.completedDate);
+      const dateB = parseDate(b.completedDate);
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return dateB - dateA; // Most recent first
+    });
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header title="All Completions" subtitle={`${selectedManager}'s Completed Tasks`} />
+          <Breadcrumb />
+
+          <div className="bg-white rounded-xl p-8 shadow-lg border border-slate-200 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-800">Completed Tasks Timeline</h2>
+              <div className="bg-green-50 px-6 py-3 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  Total Completions: <span className="font-bold text-green-600 text-xl">{completedTasks.length}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {completedTasks.map((task, idx) => (
+                <div key={idx} className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-slate-200 hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h4 className="text-lg font-bold text-slate-800 mb-2">{task.taskName}</h4>
+                      <div className="flex gap-2 flex-wrap">
+                        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-green-500 shadow-sm">
+                          ✓ Completed
+                        </span>
+                        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-slate-700 shadow-sm">
+                          Priority: {task.priority}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-slate-500">Assigned to</p>
+                      <p className="font-bold text-slate-800">{task.memberName}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 font-medium">Project</p>
+                        <p className="text-slate-800 font-bold text-sm">{task.projectName}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="bg-purple-100 p-2 rounded-lg">
+                        <Users className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 font-medium">Team Member</p>
+                        <p className="text-slate-800 font-bold text-sm">{task.memberName}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="bg-orange-100 p-2 rounded-lg">
+                        <AlertCircle className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 font-medium">Deadline</p>
+                        <p className={`font-bold text-sm ${task.deadline === "N/A" ? "text-slate-400" : "text-slate-800"}`}>
+                          {task.deadline}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="bg-green-100 p-2 rounded-lg">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 font-medium">Completed On</p>
+                        <p className={`font-bold text-sm ${task.completedDate === "-" ? "text-slate-400" : "text-green-600"}`}>
+                          {task.completedDate}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {completedTasks.length === 0 && (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 opacity-50" />
+                  <p className="text-slate-500 text-lg">No completed tasks yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // All Tasks View
+  if (currentView === "all-tasks" && selectedManager) {
+    // Get all tasks for the selected manager
+    let allTasks = [];
+    let projectName = selectedProject;
+
+    if (selectedProject) {
+      // Show tasks for a specific project
+      allTasks = excelData.filter((row) => {
+        const manager = row.Manager || row.ManagerName;
+        const project = row.Project || row.ProjectName;
+        return manager === selectedManager && project === selectedProject;
+      }).map((row) => {
+        const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
+        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
+
+        return {
+          name: row.Task || row.TaskName || "Unnamed Task",
+          status: row.Status || "Pending",
+          deadline,
+          completedDate,
+          priority: row.Priority || "Medium",
+          startDate: formatExcelDate(row.StartDate || "-"),
+          memberName: row.TeamMember || row.Member || row.Name,
+          projectName: row.Project || row.ProjectName,
+        };
+      });
+    } else {
+      // Show all tasks for all projects
+      allTasks = excelData.filter((row) => {
+        const manager = row.Manager || row.ManagerName;
+        return manager === selectedManager;
+      }).map((row) => {
+        const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
+        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
+
+        return {
+          name: row.Task || row.TaskName || "Unnamed Task",
+          status: row.Status || "Pending",
+          deadline,
+          completedDate,
+          priority: row.Priority || "Medium",
+          startDate: formatExcelDate(row.StartDate || "-"),
+          memberName: row.TeamMember || row.Member || row.Name,
+          projectName: row.Project || row.ProjectName,
+        };
+      });
+    }
+
+    allTasks.sort((a, b) => {
+      const dateA = parseDate(a.deadline);
+      const dateB = parseDate(b.deadline);
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return dateA - dateB;
+    });
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header title={projectName ? `All Tasks - ${projectName}` : "All Tasks"} subtitle={`${selectedManager}'s Team Tasks`} />
+          <Breadcrumb />
+
+          <div className="bg-white rounded-xl p-8 shadow-lg border border-slate-200 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-800">{projectName ? `${projectName} Tasks` : "All Team Tasks"}</h2>
+              <div className="bg-blue-50 px-6 py-3 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  Total Tasks: <span className="font-bold text-blue-600 text-xl">{allTasks.length}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-blue-200"></div>
+              <div className="space-y-6">
+                {allTasks.map((task, idx) => {
+                  const overdue = isOverdue(task.deadline, task.completedDate);
+                  const isCompleted = (task.status || "").toLowerCase().includes("complete") ||
+                                      (task.status || "").toLowerCase().includes("done");
+
+                  return (
+                    <div key={idx} className="relative pl-20">
+                      <div className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
+                        isCompleted ? 'bg-green-500' : 'bg-blue-500'
+                      }`}></div>
+
+                      <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-6 hover:shadow-lg transition-all border border-slate-200">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h4 className="text-lg font-bold text-slate-800 mb-2">{task.name}</h4>
+                            <div className="flex gap-2 flex-wrap mb-2">
+                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(task.status)}`}>
+                                {task.status}
+                              </span>
+                              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-slate-700 shadow-sm">
+                                Priority: {task.priority}
+                              </span>
+                            </div>
+                            <div className="flex gap-4 text-sm">
+                              <span className="text-slate-600">Project: <span className="font-semibold">{task.projectName}</span></span>
+                              <span className="text-slate-600">Assigned: <span className="font-semibold">{task.memberName}</span></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 bg-white rounded-lg p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-blue-100 p-2 rounded-lg">
+                              <Clock className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">Start Date</p>
+                              <p className="text-slate-800 font-bold text-sm">{task.startDate}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-orange-100 p-2 rounded-lg">
+                              <AlertCircle className="w-5 h-5 text-orange-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">Deadline</p>
+                              <p className="text-slate-800 font-bold text-sm">{task.deadline}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-green-100 p-2 rounded-lg">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">Completed</p>
+                              <p className={`font-bold text-sm ${task.completedDate === "-" ? "text-slate-400" : "text-slate-800"}`}>
+                                {task.completedDate}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className={`${overdue ? 'bg-red-100' : 'bg-green-100'} p-2 rounded-lg`}>
+                              {overdue ? (
+                                <AlertCircle className="w-5 h-5 text-red-600" />
+                              ) : (
+                                <CheckCircle className="w-5 h-5 text-green-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">Status</p>
+                              <p className={`font-bold text-sm ${overdue ? "text-red-600" : "text-green-600"}`}>
+                                {overdue ? "⚠️ Overdue" : "✓ On Time"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {allTasks.length === 0 && (
+              <div className="text-center py-12">
+                <BarChart3 className="w-16 h-16 text-slate-400 mx-auto mb-4 opacity-50" />
+                <p className="text-slate-500 text-lg">No tasks found.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
