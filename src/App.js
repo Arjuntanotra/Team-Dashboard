@@ -10,9 +10,23 @@ import {
   BarChart3,
   Home,
   ChevronRight,
+  Filter,
+  X,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 
 export default function TeamDashboard() {
   const [excelData, setExcelData] = useState(null);
@@ -20,15 +34,31 @@ export default function TeamDashboard() {
   const [selectedManager, setSelectedManager] = useState(null);
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProjectFilters, setSelectedProjectFilters] = useState([]);
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
+  const [selectedTimingFilters, setSelectedTimingFilters] = useState([]);
+  const [selectedKpiFilters, setSelectedKpiFilters] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Google Sheet Configuration
   const GOOGLE_SHEET_ID = "1yTQxwYjcB_VbBaPssF70p9rkU3vFsdGfqYUnWFLCVtY";
   const SHEET_NAME = "Sheet1";
 
-  const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#84cc16', '#f97316', '#14b8a6'];
+  const COLORS = [
+    "#3b82f6",
+    "#8b5cf6",
+    "#ec4899",
+    "#f59e0b",
+    "#10b981",
+    "#06b6d4",
+    "#6366f1",
+    "#84cc16",
+    "#f97316",
+    "#14b8a6",
+  ];
 
   useEffect(() => {
     loadExcelData();
@@ -43,11 +73,15 @@ export default function TeamDashboard() {
     setError(null);
 
     try {
-      const url = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+      const url = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(
+        SHEET_NAME
+      )}`;
       const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error("Failed to fetch Google Sheet. Make sure the sheet is published or publicly accessible.");
+        throw new Error(
+          "Failed to fetch Google Sheet. Make sure the sheet is published or publicly accessible."
+        );
       }
 
       const csvText = await response.text();
@@ -57,7 +91,9 @@ export default function TeamDashboard() {
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
       if (jsonData.length === 0) {
-        throw new Error("Google Sheet is empty. Please add data to your sheet.");
+        throw new Error(
+          "Google Sheet is empty. Please add data to your sheet."
+        );
       }
 
       setExcelData(jsonData);
@@ -76,14 +112,38 @@ export default function TeamDashboard() {
     setIsRefreshing(false);
   };
 
+  const calculateKPI = (startDateStr, completionDateStr, deadlineStr) => {
+    if (!completionDateStr || completionDateStr === "N/A" || completionDateStr === "-") return null;
+
+    const start = parseDate(startDateStr);
+    const completion = parseDate(completionDateStr);
+    const deadline = parseDate(deadlineStr);
+
+    if (!start || !completion || !deadline) return null;
+
+    const plannedDays = Math.max(1, Math.ceil((deadline - start) / (1000 * 60 * 60 * 24)));
+    const actualDays = Math.max(1, Math.ceil((completion - start) / (1000 * 60 * 60 * 24)));
+
+    if (actualDays <= plannedDays) return 100;
+    return Math.max(0, Math.round((plannedDays / actualDays) * 100));
+  };
+
   const formatExcelDate = (excelDate) => {
-    if (!excelDate || excelDate === "N/A" || excelDate === "-") return excelDate;
-    if (typeof excelDate === "string" && excelDate.includes("/")) return excelDate;
-    if (typeof excelDate === "string" && excelDate.includes("-") && excelDate.length > 5) return excelDate;
+    if (!excelDate || excelDate === "N/A" || excelDate === "-")
+      return excelDate;
+    if (typeof excelDate === "string" && excelDate.includes("/"))
+      return excelDate;
+    if (
+      typeof excelDate === "string" &&
+      excelDate.includes("-") &&
+      excelDate.length > 5
+    )
+      return excelDate;
 
     try {
       if (typeof excelDate === "number" || !isNaN(parseFloat(excelDate))) {
-        const serialNumber = typeof excelDate === "number" ? excelDate : parseFloat(excelDate);
+        const serialNumber =
+          typeof excelDate === "number" ? excelDate : parseFloat(excelDate);
         const excelEpoch = new Date(1899, 11, 30);
         const date = new Date(excelEpoch.getTime() + serialNumber * 86400000);
         const day = String(date.getDate()).padStart(2, "0");
@@ -122,11 +182,11 @@ export default function TeamDashboard() {
   const getAllManagers = () => {
     if (!excelData) return [];
     const managersMap = {};
-    
+
     excelData.forEach((row) => {
       const manager = row.Manager || row.ManagerName;
       const managerRole = row.ManagerRole || "Manager";
-      
+
       if (manager && !managersMap[manager]) {
         managersMap[manager] = {
           name: manager,
@@ -134,47 +194,72 @@ export default function TeamDashboard() {
           teamMembers: new Set(),
           totalTasks: 0,
           completedTasks: 0,
+          inProgressTasks: 0,
           projects: new Set(),
         };
       }
-      
+
       if (manager) {
         const member = row.TeamMember || row.Member || row.Name;
         const project = row.Project || row.ProjectName;
-        
-        if (member) {
-          managersMap[manager].teamMembers.add(member);
-          managersMap[manager].totalTasks++;
-          
-          const status = (row.Status || "").toLowerCase();
-          if (status.includes("completed") || status.includes("complete") || status.includes("done")) {
-            managersMap[manager].completedTasks++;
-          }
+
+      if (member) {
+        managersMap[manager].teamMembers.add(member);
+        managersMap[manager].totalTasks++;
+
+        const status = (row.Status || "").toLowerCase();
+        if (
+          status.includes("completed") ||
+          status.includes("complete") ||
+          status.includes("done")
+        ) {
+          managersMap[manager].completedTasks++;
         }
-        
+        // Count all non-completed tasks as in progress
+        // This matches what the In Progress Tasks view does
+        if (!(
+          status.includes("completed") ||
+          status.includes("complete") ||
+          status.includes("done")
+        )) {
+          managersMap[manager].inProgressTasks++;
+        }
+      }
+
         if (project) {
           managersMap[manager].projects.add(project);
         }
       }
     });
 
-    return Object.values(managersMap).map(manager => ({
+    // Calculate manager KPIs as average of member KPIs
+    Object.keys(managersMap).forEach(managerName => {
+      const teamMembersData = getTeamMembersData(managerName);
+      const memberKpis = teamMembersData.map(member => member.kpi).filter(kpi => kpi !== undefined && kpi !== null);
+      const averageKpi = memberKpis.length > 0 ? Math.round(memberKpis.reduce((sum, kpi) => sum + kpi, 0) / memberKpis.length) : 0;
+      managersMap[managerName].averageKpi = averageKpi;
+    });
+
+    return Object.values(managersMap).map((manager) => ({
       ...manager,
       teamCount: manager.teamMembers.size,
       projectCount: manager.projects.size,
-      percentage: manager.totalTasks > 0 ? Math.round((manager.completedTasks / manager.totalTasks) * 100) : 0,
+      percentage:
+        manager.totalTasks > 0
+          ? Math.round((manager.completedTasks / manager.totalTasks) * 100)
+          : 0,
     }));
   };
 
   const getTeamMembersData = (managerName) => {
     if (!excelData) return [];
-    
+
     const membersMap = {};
-    
+
     excelData.forEach((row) => {
       const manager = row.Manager || row.ManagerName;
       const member = row.TeamMember || row.Member || row.Name;
-      
+
       if (manager === managerName && member) {
         if (!membersMap[member]) {
           membersMap[member] = {
@@ -183,41 +268,100 @@ export default function TeamDashboard() {
             totalTasks: 0,
             completedTasks: 0,
             projects: new Set(),
+            projectsMap: {},
           };
         }
         membersMap[member].totalTasks++;
-        
+
         const status = (row.Status || "").toLowerCase();
-        if (status.includes("completed") || status.includes("complete") || status.includes("done")) {
+        if (
+          status.includes("completed") ||
+          status.includes("complete") ||
+          status.includes("done")
+        ) {
           membersMap[member].completedTasks++;
         }
-        
+
         const project = row.Project || row.ProjectName;
         if (project) {
           membersMap[member].projects.add(project);
+          if (!membersMap[member].projectsMap[project]) {
+            membersMap[member].projectsMap[project] = {
+              totalTasks: 0,
+              completedTasks: 0,
+              tasks: [],
+            };
+          }
+          membersMap[member].projectsMap[project].totalTasks++;
+          if (
+            status.includes("completed") ||
+            status.includes("complete") ||
+            status.includes("done")
+          ) {
+            membersMap[member].projectsMap[project].completedTasks++;
+          }
+          membersMap[member].projectsMap[project].tasks.push({
+            status: row.Status || "Pending",
+            startDate: formatExcelDate(row.StartDate || "-"),
+            deadline: formatExcelDate(row.Deadline || row.DueDate || "N/A"),
+            completedDate: formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-"),
+          });
         }
       }
     });
 
-    return Object.values(membersMap).map(member => ({
-      ...member,
-      projectCount: member.projects.size,
-      percentage: member.totalTasks > 0 ? Math.round((member.completedTasks / member.totalTasks) * 100) : 0,
-    }));
+    return Object.values(membersMap).map((member) => {
+      // Calculate member KPI as average of project KPIs
+      const projectKpis = Object.entries(member.projectsMap).map(([projectName, projectData]) => {
+        const tasks = projectData.tasks;
+        const completedCount = tasks.filter(t =>
+          (t.status || "").toLowerCase().includes("complete") ||
+          (t.status || "").toLowerCase().includes("done")
+        ).length;
+        const totalTasks = tasks.length;
+        let projectKpi;
+        if (completedCount === totalTasks && totalTasks > 0) {
+          // all completed, average of all tasks with kpi
+          const kpis = tasks.filter(t => t.completedDate !== "-" && t.deadline !== "N/A")
+            .map(t => calculateKPI(t.startDate, t.completedDate, t.deadline))
+            .filter(k => k !== null);
+          projectKpi = kpis.length > 0 ? kpis.reduce((s, k) => s + k, 0) / kpis.length : 0;
+        } else if (completedCount > 0) {
+          // under progress, average of completed tasks KPI
+          const completedKPIs = tasks.filter(t =>
+            (t.status || "").toLowerCase().includes("complete") ||
+            (t.status || "").toLowerCase().includes("done")
+          ).map(t => calculateKPI(t.startDate, t.completedDate, t.deadline)).filter(k => k !== null);
+          projectKpi = completedKPIs.length > 0 ? completedKPIs.reduce((s, k) => s + k, 0) / completedKPIs.length : 0;
+        } else {
+          // not started
+          projectKpi = 0;
+        }
+        return projectKpi;
+      });
+      const memberKpi = projectKpis.length > 0 ? Math.round(projectKpis.reduce((s, k) => s + k, 0) / projectKpis.length) : 0;
+
+      return {
+        ...member,
+        projectCount: member.projects.size,
+        percentage: member.totalTasks > 0 ? Math.round((member.completedTasks / member.totalTasks) * 100) : 0,
+        kpi: memberKpi,
+      };
+    });
   };
 
   const getMemberProjectTimeline = (memberName) => {
     if (!excelData) return { timelineData: [], projects: [] };
-    
+
     const projectsMap = {};
-    
+
     // Collect all tasks for each project
     excelData.forEach((row) => {
       const member = row.TeamMember || row.Member || row.Name;
       const project = row.Project || row.ProjectName;
       const startDate = row.StartDate;
       const deadline = row.Deadline || row.DueDate;
-      
+
       if (member === memberName && project) {
         if (!projectsMap[project]) {
           projectsMap[project] = {
@@ -227,7 +371,7 @@ export default function TeamDashboard() {
             tasks: [],
           };
         }
-        
+
         if (startDate) {
           const formattedStart = formatExcelDate(startDate);
           const parsedStart = parseDate(formattedStart);
@@ -235,7 +379,7 @@ export default function TeamDashboard() {
             projectsMap[project].startDates.push(parsedStart.getTime());
           }
         }
-        
+
         if (deadline) {
           const formattedDeadline = formatExcelDate(deadline);
           const parsedDeadline = parseDate(formattedDeadline);
@@ -243,20 +387,20 @@ export default function TeamDashboard() {
             projectsMap[project].endDates.push(parsedDeadline.getTime());
           }
         }
-        
-        projectsMap[project].tasks.push(row.Task || row.TaskName || 'Task');
+
+        projectsMap[project].tasks.push(row.Task || row.TaskName || "Task");
       }
     });
 
     // Calculate project timeline bars
     const timelineData = [];
     const projects = Object.keys(projectsMap);
-    
+
     // Find global min and max dates for timeline scale
     let globalMinDate = Infinity;
     let globalMaxDate = -Infinity;
-    
-    projects.forEach(project => {
+
+    projects.forEach((project) => {
       const data = projectsMap[project];
       if (data.startDates.length > 0) {
         const minStart = Math.min(...data.startDates);
@@ -265,28 +409,30 @@ export default function TeamDashboard() {
         globalMaxDate = Math.max(globalMaxDate, maxEnd);
       }
     });
-    
+
     // Create timeline data for each project
-    projects.forEach(project => {
+    projects.forEach((project) => {
       const data = projectsMap[project];
-      
+
       if (data.startDates.length > 0 && data.endDates.length > 0) {
         const projectStart = Math.min(...data.startDates);
         const projectEnd = Math.max(...data.endDates);
-        
+
         timelineData.push({
           project: project,
           start: projectStart,
           end: projectEnd,
           startDate: new Date(projectStart),
           endDate: new Date(projectEnd),
-          duration: Math.ceil((projectEnd - projectStart) / (1000 * 60 * 60 * 24)), // days
+          duration: Math.ceil(
+            (projectEnd - projectStart) / (1000 * 60 * 60 * 24)
+          ), // days
           taskCount: data.tasks.length,
         });
       }
     });
-    
-    return { 
+
+    return {
       timelineData: timelineData.sort((a, b) => a.start - b.start),
       projects,
       globalMinDate: new Date(globalMinDate),
@@ -296,7 +442,7 @@ export default function TeamDashboard() {
 
   const getProjectTasks = (memberName, projectName) => {
     if (!excelData) return [];
-    
+
     return excelData
       .filter((row) => {
         const member = row.TeamMember || row.Member || row.Name;
@@ -305,15 +451,21 @@ export default function TeamDashboard() {
       })
       .map((row) => {
         const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
-        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
-        
+        const completedDate = formatExcelDate(
+          row.CompletedDate || row.ActualDate || row.CompletionDate || "-"
+        );
+
+        const startDate = formatExcelDate(row.StartDate || "-");
+        const kpi = calculateKPI(startDate, completedDate, deadline);
+
         return {
           name: row.Task || row.TaskName || "Unnamed Task",
           status: row.Status || "Pending",
           deadline,
           completedDate,
           priority: row.Priority || "Medium",
-          startDate: formatExcelDate(row.StartDate || "-"),
+          startDate,
+          kpi,
         };
       })
       .sort((a, b) => {
@@ -373,6 +525,21 @@ export default function TeamDashboard() {
     setCurrentView("all-tasks");
     setSelectedMember(null);
     setSelectedProject(null);
+    setSelectedProjectFilters([]);
+  };
+
+  const navigateToInProgressTasks = () => {
+    setCurrentView("in-progress-tasks");
+    setSelectedMember(null);
+    setSelectedProject(null);
+    setSelectedProjectFilters([]);
+  };
+
+  const navigateToOverdueTasks = () => {
+    setCurrentView("overdue-tasks");
+    setSelectedMember(null);
+    setSelectedProject(null);
+    setSelectedProjectFilters([]);
   };
 
   // Breadcrumb Component
@@ -387,60 +554,96 @@ export default function TeamDashboard() {
           Dashboard
         </span>
 
-        {selectedManager && currentView !== "all-members" && currentView !== "all-projects" && currentView !== "all-completions" && !(currentView === "all-tasks" && !selectedProject) && (
-          <>
-            <ChevronRight className="w-4 h-4" />
-            <span
-              onClick={() => navigateToManager(selectedManager)}
-              className={`${
-                selectedMember ? "cursor-pointer hover:text-blue-600 hover:underline" : "text-slate-900 font-semibold"
-              } transition-colors`}
-            >
-              {selectedManager}
-            </span>
-          </>
-        )}
+        {selectedManager &&
+          currentView !== "all-members" &&
+          currentView !== "all-projects" &&
+          currentView !== "all-completions" &&
+          !(currentView === "all-tasks" && !selectedProject) && (
+            <>
+              <ChevronRight className="w-4 h-4" />
+              <span
+                onClick={() => navigateToManager(selectedManager)}
+                className={`${
+                  selectedMember
+                    ? "cursor-pointer hover:text-blue-600 hover:underline"
+                    : "text-slate-900 font-semibold"
+                } transition-colors`}
+              >
+                {selectedManager}
+              </span>
+            </>
+          )}
 
-        {(selectedManager && (currentView === "all-members" || currentView === "all-projects" || currentView === "all-completions" || (currentView === "all-tasks" && !selectedProject))) && (
-          <>
-            <ChevronRight className="w-4 h-4" />
-            <span
-              onClick={() => navigateToManager(selectedManager)}
-              className="cursor-pointer hover:text-blue-600 hover:underline text-slate-900 font-semibold transition-colors"
-            >
-              {selectedManager}
-            </span>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-slate-900 font-semibold">
-              {currentView === "all-members" ? "All Members" :
-               currentView === "all-projects" ? "All Projects" :
-               currentView === "all-completions" ? "All Completions" :
-               currentView === "all-tasks" ? "All Tasks" : "View"}
-            </span>
-          </>
-        )}
+        {selectedManager &&
+          (currentView === "all-members" ||
+            currentView === "all-projects" ||
+            currentView === "all-completions" ||
+            currentView === "in-progress-tasks" ||
+            currentView === "overdue-tasks" ||
+            (currentView === "all-tasks" && !selectedProject)) && (
+            <>
+              <ChevronRight className="w-4 h-4" />
+              <span
+                onClick={() => navigateToManager(selectedManager)}
+                className="cursor-pointer hover:text-blue-600 hover:underline text-slate-900 font-semibold transition-colors"
+              >
+                {selectedManager}
+              </span>
+              <ChevronRight className="w-4 h-4" />
+              <span className="text-slate-900 font-semibold">
+                {currentView === "all-members"
+                  ? "All Members"
+                  : currentView === "all-projects"
+                  ? "All Projects"
+                  : currentView === "all-completions"
+                  ? "All Completions"
+                  : currentView === "in-progress-tasks"
+                  ? "In Progress Tasks"
+                  : currentView === "overdue-tasks"
+                  ? "Overdue Tasks"
+                  : currentView === "all-tasks"
+                  ? "All Tasks"
+                  : "View"}
+              </span>
+            </>
+          )}
 
-        {selectedMember && currentView !== "all-members" && currentView !== "all-projects" && currentView !== "all-completions" && currentView !== "all-tasks" && (
+        {selectedMember &&
+          currentView !== "all-members" &&
+          currentView !== "all-projects" &&
+          currentView !== "all-completions" &&
+          currentView !== "all-tasks" && (
+            <>
+              <ChevronRight className="w-4 h-4" />
+              <span
+                onClick={() => {
+                  setCurrentView("member");
+                  setSelectedProject(null);
+                }}
+                className={`${
+                  selectedProject
+                    ? "cursor-pointer hover:text-blue-600 hover:underline"
+                    : "text-slate-900 font-semibold"
+                } transition-colors`}
+              >
+                {selectedMember}
+              </span>
+            </>
+          )}
+
+        {currentView === "performance-details" && selectedManager && (
           <>
             <ChevronRight className="w-4 h-4" />
-            <span
-              onClick={() => {
-                setCurrentView("member");
-                setSelectedProject(null);
-              }}
-              className={`${
-                selectedProject ? "cursor-pointer hover:text-blue-600 hover:underline" : "text-slate-900 font-semibold"
-              } transition-colors`}
-            >
-              {selectedMember}
-            </span>
+            <span className="text-slate-900 font-semibold">Success Metrics</span>
           </>
         )}
 
         {selectedProject && (
           <>
             <ChevronRight className="w-4 h-4" />
-            <span className="text-slate-900 font-semibold">{selectedProject}</span>
+            <span className="text-slate-900 font-semibold">
+              {selectedProject}
+            </span>
           </>
         )}
       </div>
@@ -464,13 +667,17 @@ export default function TeamDashboard() {
               disabled={isRefreshing}
               className="mb-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-auto font-medium"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
               {isRefreshing ? "Refreshing..." : "Refresh Data"}
             </button>
             {lastUpdated && (
               <div className="bg-slate-50 px-3 py-1 rounded-lg">
                 <p className="text-slate-500 text-xs">Last Updated</p>
-                <p className="text-slate-700 font-semibold text-sm">{lastUpdated.toLocaleTimeString()}</p>
+                <p className="text-slate-700 font-semibold text-sm">
+                  {lastUpdated.toLocaleTimeString()}
+                </p>
               </div>
             )}
           </div>
@@ -486,8 +693,12 @@ export default function TeamDashboard() {
         <div className="text-center">
           <div className="bg-white rounded-2xl p-8 shadow-xl">
             <RefreshCw className="w-16 h-16 text-blue-600 animate-spin mx-auto mb-4" />
-            <p className="text-slate-700 text-xl font-semibold">Loading Dashboard...</p>
-            <p className="text-slate-500 text-sm mt-2">Fetching team data from Google Sheets</p>
+            <p className="text-slate-700 text-xl font-semibold">
+              Loading Dashboard...
+            </p>
+            <p className="text-slate-500 text-sm mt-2">
+              Fetching team data from Google Sheets
+            </p>
           </div>
         </div>
       </div>
@@ -501,22 +712,49 @@ export default function TeamDashboard() {
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-2xl p-8 border border-red-200 shadow-xl">
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-slate-800 text-center mb-4">Error Loading Data</h2>
+            <h2 className="text-2xl font-bold text-slate-800 text-center mb-4">
+              Error Loading Data
+            </h2>
             <p className="text-red-600 text-center mb-6">{error}</p>
             <div className="bg-slate-50 rounded-lg p-6 mb-6 border border-slate-200">
-              <h3 className="text-slate-800 font-semibold mb-3">Required Excel Columns:</h3>
+              <h3 className="text-slate-800 font-semibold mb-3">
+                Required Excel Columns:
+              </h3>
               <ul className="text-slate-600 space-y-1 list-disc list-inside">
-                <li><strong>Manager</strong>: Manager name</li>
-                <li><strong>ManagerRole</strong>: Manager role (DGM, GM, etc.)</li>
-                <li><strong>TeamMember</strong>: Team member name</li>
-                <li><strong>Role</strong>: Team member role</li>
-                <li><strong>Project</strong>: Project name</li>
-                <li><strong>Task</strong>: Task description</li>
-                <li><strong>Status</strong>: Task status (Completed/In Progress/Pending/Blocked)</li>
-                <li><strong>Deadline</strong>: Task deadline date</li>
-                <li><strong>CompletedDate</strong>: Actual completion date</li>
-                <li><strong>Priority</strong>: Task priority (High/Medium/Low)</li>
-                <li><strong>StartDate</strong>: Task start date (optional)</li>
+                <li>
+                  <strong>Manager</strong>: Manager name
+                </li>
+                <li>
+                  <strong>ManagerRole</strong>: Manager role (DGM, GM, etc.)
+                </li>
+                <li>
+                  <strong>TeamMember</strong>: Team member name
+                </li>
+                <li>
+                  <strong>Role</strong>: Team member role
+                </li>
+                <li>
+                  <strong>Project</strong>: Project name
+                </li>
+                <li>
+                  <strong>Task</strong>: Task description
+                </li>
+                <li>
+                  <strong>Status</strong>: Task status (Completed/In
+                  Progress/Pending/Blocked)
+                </li>
+                <li>
+                  <strong>Deadline</strong>: Task deadline date
+                </li>
+                <li>
+                  <strong>CompletedDate</strong>: Actual completion date
+                </li>
+                <li>
+                  <strong>Priority</strong>: Task priority (High/Medium/Low)
+                </li>
+                <li>
+                  <strong>StartDate</strong>: Task start date (optional)
+                </li>
               </ul>
             </div>
             <button
@@ -539,7 +777,10 @@ export default function TeamDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title="Team Management Dashboard" subtitle="Select a manager to view their team overview" />
+          <Header
+            title="Team Management Dashboard"
+            
+          />
           <Breadcrumb />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -557,8 +798,10 @@ export default function TeamDashboard() {
                     {manager.role}
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-4">{manager.name}</h3>
-                
+                <h3 className="text-2xl font-bold text-white mb-4">
+                  {manager.name}
+                </h3>
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-blue-50">
                     <span className="flex items-center gap-2">
@@ -581,18 +824,29 @@ export default function TeamDashboard() {
                     </span>
                     <span className="font-bold">{manager.totalTasks}</span>
                   </div>
+                  <div className="flex items-center justify-between text-blue-50">
+                    <span className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4" />
+                      Team KPI
+                    </span>
+                    <span className="font-bold">{manager.averageKpi}%</span>
+                  </div>
                 </div>
-                
+
                 <div className="mt-4 pt-4 border-t border-white/20">
                   <div className="flex items-center justify-between text-white mb-2">
-                    <span className="text-sm">Progress</span>
-                    <span className="text-sm font-bold">{manager.percentage}%</span>
+                    <span className="text-sm">Progress & Avg KPI</span>
                   </div>
-                  <div className="bg-white/20 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-white h-2 rounded-full transition-all"
-                      style={{ width: `${manager.percentage}%` }}
-                    />
+                  <div className="space-y-1">
+                    <div className="bg-white/20 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-white h-2 rounded-full transition-all"
+                        style={{ width: `${manager.percentage}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-white/80 text-center">
+                      Progress: {manager.percentage}% | KPI: {manager.averageKpi}%
+                    </p>
                   </div>
                 </div>
               </div>
@@ -604,57 +858,157 @@ export default function TeamDashboard() {
   }
 
   const teamData = getTeamMembersData(selectedManager);
-  const totalTasks = teamData.reduce((sum, member) => sum + member.totalTasks, 0);
+  const totalTasks = teamData.reduce(
+    (sum, member) => sum + member.totalTasks,
+    0
+  );
 
   // Manager Overview Page with Pie Chart
   if (currentView === "overview" && selectedManager) {
-    const managerInfo = managers.find(m => m.name === selectedManager);
-    
+    const managerInfo = managers.find((m) => m.name === selectedManager);
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title={`${selectedManager}'s Team Dashboard`} subtitle="Overview of all projects and team members" />
+          <Header
+            title={`${selectedManager}'s Team Dashboard`}
+            subtitle="Overview of all projects and team members"
+          />
           <Breadcrumb />
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+            <div onClick={() => { setCurrentView("all-completions"); setSelectedMember(null); setSelectedProject(null); }} className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all">
+              <CheckCircle className="w-10 h-10 mb-3 opacity-80" />
+              <p className="text-green-100 text-sm mb-1">Completed Tasks</p>
+              <p className="text-3xl font-bold">{managerInfo?.completedTasks || 0}</p>
+            </div>
+            <div onClick={navigateToInProgressTasks} className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all">
+              <Clock className="w-10 h-10 mb-3 opacity-80" />
+              <p className="text-blue-100 text-sm mb-1">In Progress Tasks</p>
+              <p className="text-3xl font-bold">{managerInfo?.inProgressTasks || 0}</p>
+            </div>
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 shadow-lg text-white">
+              <BarChart3 className="w-10 h-10 mb-3 opacity-80" />
+              <p className="text-indigo-100 text-sm mb-1">Team Average KPI</p>
+              <p className="text-3xl font-bold">{managerInfo?.averageKpi || 0}%</p>
+            </div>
             <div
               onClick={navigateToAllMembers}
-              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+              className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
             >
               <Users className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-blue-100 text-sm mb-1">Team Members</p>
+              <p className="text-purple-100 text-sm mb-1">Team Members</p>
               <p className="text-3xl font-bold">{teamData.length}</p>
             </div>
             <div
               onClick={navigateToAllProjects}
-              className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+              className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
             >
               <FolderOpen className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-purple-100 text-sm mb-1">Total Projects</p>
-              <p className="text-3xl font-bold">{managerInfo?.projectCount || 0}</p>
-            </div>
-            <div
-              onClick={() => setCurrentView("all-completions")}
-              className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
-            >
-              <CheckCircle className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-green-100 text-sm mb-1">Completion</p>
-              <p className="text-3xl font-bold">{managerInfo?.percentage || 0}%</p>
+              <p className="text-orange-100 text-sm mb-1">Total Projects</p>
+              <p className="text-3xl font-bold">
+                {managerInfo?.projectCount || 0}
+              </p>
             </div>
             <div
               onClick={navigateToAllTasks}
-              className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+              className="bg-gradient-to-br from-slate-500 to-slate-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
             >
               <BarChart3 className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-orange-100 text-sm mb-1">Tasks</p>
+              <p className="text-slate-100 text-sm mb-1">All Tasks</p>
               <p className="text-3xl font-bold">{totalTasks}</p>
+            </div>
+          </div>
+
+          {/* Quick Insights */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-orange-200">
+              <Clock className="w-8 h-8 text-orange-600 mb-3" />
+              <h3 className="text-lg font-bold text-slate-800 mb-1">Team Progress</h3>
+              <p className="text-slate-600 text-sm mb-4">
+                {Math.round((managerInfo?.completedTasks || 0) / Math.max(totalTasks, 1) * 100)}% overall completion rate
+              </p>
+              <div className="bg-slate-200 rounded-full h-3 overflow-hidden mb-4">
+                <div
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full transition-all"
+                  style={{ width: `${Math.round((managerInfo?.completedTasks || 0) / Math.max(totalTasks, 1) * 100)}%` }}
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">Completed Tasks</span>
+                  <span className="font-bold text-green-600">{managerInfo?.completedTasks || 0}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">In Progress</span>
+                  <span className="font-bold text-blue-600">{managerInfo?.inProgressTasks || 0}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">Total Tasks</span>
+                  <span className="font-bold text-slate-800">{totalTasks}</span>
+                </div>
+              </div>
+            </div>
+            <div
+              className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 border border-red-200 cursor-pointer hover:shadow-lg transition-all hover:border-red-300"
+              onClick={() => navigateToOverdueTasks()}
+            >
+              <AlertCircle className="w-8 h-8 text-red-600 mb-3" />
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-lg font-bold text-slate-800">Overdue Tasks</h3>
+                <ChevronRight className="w-5 h-5 text-slate-400" />
+              </div>
+              <p className="text-slate-600 text-sm mb-4">Tasks past their deadline that need immediate attention</p>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-red-600">Total Overdue:</span>
+                <span className="text-2xl font-bold text-red-700">
+                  {excelData.filter(row => {
+                    if ((row.Manager || row.ManagerName) !== selectedManager) return false;
+                    const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
+                    const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
+                    const status = (row.Status || "").toLowerCase();
+                    return status.includes("completed") || status.includes("complete") || status.includes("done")
+                      ? completedDate !== "-" && deadline !== "N/A" && parseDate(completedDate) > parseDate(deadline)
+                      : deadline !== "N/A" && new Date() > parseDate(deadline);
+                  }).length}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">Click to view detailed task list →</p>
+            </div>
+            <div onClick={() => setCurrentView("performance-details")} className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6 border border-green-200 cursor-pointer hover:shadow-lg transition-all hover:border-green-300">
+              <div className="flex items-center justify-between mb-3">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+                <ChevronRight className="w-5 h-5 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-1">Success Metrics</h3>
+              <p className="text-slate-600 text-sm mb-4">
+                {teamData.filter(member => member.kpi >= 80).length} members with high KPI scores (80%+)
+                <br />
+                <span className="text-xs">High: ≥80% | Good: 60-79% | Needs: &lt;60%</span>
+              </p>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">High Performers</span>
+                  <span className="font-bold text-green-600">{teamData.filter(member => member.kpi >= 80).length}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">Good Performance</span>
+                  <span className="font-bold text-yellow-600">{teamData.filter(member => member.kpi >= 60 && member.kpi < 80).length}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">Needs Attention</span>
+                  <span className="font-bold text-red-600">{teamData.filter(member => member.kpi < 60).length}</span>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Pie Chart */}
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">Team Task Distribution</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">
+              Team Task Distribution
+            </h2>
             <div className="flex flex-col lg:flex-row items-center gap-8">
               <div className="w-full lg:w-1/2 h-96">
                 {teamData.length > 0 ? (
@@ -667,29 +1021,58 @@ export default function TeamDashboard() {
                         cx="50%"
                         cy="50%"
                         outerRadius={120}
-                        label={({ name, totalTasks, percentage }) => `${name}: ${totalTasks} (${percentage}%)`}
+                        label={({ name, totalTasks, percentage }) =>
+                          `${name}: ${totalTasks} (${percentage}%)`
+                        }
                         onClick={(data) => {
                           setSelectedMember(data.name);
                           setCurrentView("member");
                         }}
-                        style={{ cursor: 'pointer' }}
+                        style={{ cursor: "pointer" }}
                       >
                         {teamData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
                               <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
-                                <p className="font-bold text-slate-800">{data.name}</p>
-                                <p className="text-slate-600">Total Tasks: <span className="font-semibold">{data.totalTasks}</span></p>
-                                <p className="text-slate-600">Completed: <span className="font-semibold">{data.completedTasks}</span></p>
-                                <p className="text-slate-600">Progress: <span className="font-semibold">{data.percentage}%</span></p>
-                                <p className="text-slate-600">Projects: <span className="font-semibold">{data.projectCount}</span></p>
-                                <p className="text-blue-600 text-sm mt-2 font-medium">Click to view details →</p>
+                                <p className="font-bold text-slate-800">
+                                  {data.name}
+                                </p>
+                                <p className="text-slate-600">
+                                  Total Tasks:{" "}
+                                  <span className="font-semibold">
+                                    {data.totalTasks}
+                                  </span>
+                                </p>
+                                <p className="text-slate-600">
+                                  Completed:{" "}
+                                  <span className="font-semibold">
+                                    {data.completedTasks}
+                                  </span>
+                                </p>
+                                <p className="text-slate-600">
+                                  Progress:{" "}
+                                  <span className="font-semibold">
+                                    {data.percentage}%
+                                  </span>
+                                </p>
+                                <p className="text-slate-600">
+                                  Projects:{" "}
+                                  <span className="font-semibold">
+                                    {data.projectCount}
+                                  </span>
+                                </p>
+                                <p className="text-blue-600 text-sm mt-2 font-medium">
+                                  Click to view details →
+                                </p>
                               </div>
                             );
                           }
@@ -704,9 +1087,11 @@ export default function TeamDashboard() {
                   </div>
                 )}
               </div>
-              
+
               <div className="w-full lg:w-1/2 space-y-4">
-                <h3 className="text-lg font-semibold text-slate-700 mb-4">Team Members</h3>
+                <h3 className="text-lg font-semibold text-slate-700 mb-4">
+                  Team Members
+                </h3>
                 {teamData.map((member, idx) => (
                   <div
                     key={idx}
@@ -718,19 +1103,29 @@ export default function TeamDashboard() {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <div 
-                          className="w-4 h-4 rounded-full" 
-                          style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{
+                            backgroundColor: COLORS[idx % COLORS.length],
+                          }}
                         />
                         <div>
-                          <h4 className="font-bold text-slate-800">{member.name}</h4>
-                          <p className="text-xs text-slate-500">{member.role}</p>
+                          <h4 className="font-bold text-slate-800">
+                            {member.name}
+                          </h4>
+                          <p className="text-xs text-slate-500">
+                            {member.role}
+                          </p>
                         </div>
                       </div>
-                      <span className="text-sm font-semibold text-blue-600">{member.percentage}% Complete</span>
+                      <span className="text-sm font-semibold text-blue-600">
+                        {member.percentage}% Complete
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
-                      <span>{member.completedTasks} / {member.totalTasks} Tasks</span>
+                      <span>
+                        {member.completedTasks} / {member.totalTasks} Tasks
+                      </span>
                       <span>{member.projectCount} Projects</span>
                     </div>
                     <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
@@ -751,23 +1146,61 @@ export default function TeamDashboard() {
 
   // Member Profile Page
   if (currentView === "member" && selectedMember) {
-    const { timelineData, projects, globalMinDate, globalMaxDate } = getMemberProjectTimeline(selectedMember);
-    const memberData = teamData.find(m => m.name === selectedMember);
+    const { timelineData, projects, globalMinDate, globalMaxDate } =
+      getMemberProjectTimeline(selectedMember);
+    const memberData = teamData.find((m) => m.name === selectedMember);
+
+    // Calculate project KPIs
+    const projectKpisData = projects.map(project => {
+      const projectTasks = getProjectTasks(selectedMember, project);
+      const completedCount = projectTasks.filter(
+        (t) =>
+          (t.status || "").toLowerCase().includes("complete") ||
+          (t.status || "").toLowerCase().includes("done")
+      ).length;
+      const totalTasks = projectTasks.length;
+      let projectKpi;
+      if (completedCount === totalTasks && totalTasks > 0) {
+        // all completed, average of all tasks with kpi
+        const kpis = projectTasks.map(t => t.kpi).filter(k => k !== null);
+        projectKpi = kpis.length > 0 ? kpis.reduce((s, k) => s + k, 0) / kpis.length : 0;
+      } else if (completedCount > 0) {
+        // under progress, average of completed tasks KPI
+        const completedKPIs = projectTasks.filter(t =>
+          (t.status || "").toLowerCase().includes("complete") ||
+          (t.status || "").toLowerCase().includes("done")
+        ).map(t => t.kpi).filter(k => k !== null);
+        projectKpi = completedKPIs.length > 0 ? completedKPIs.reduce((s, k) => s + k, 0) / completedKPIs.length : 0;
+      } else {
+        // not started
+        projectKpi = 0;
+      }
+      return {
+        project,
+        projectKpi,
+        completedCount,
+        totalTasks,
+      };
+    });
+
+    const overallKpi = projectKpisData.length > 0 ? Math.round(projectKpisData.reduce((s, p) => s + p.projectKpi, 0) / projectKpisData.length) : 0;
 
     // Generate week labels for X-axis
     const generateWeekLabels = () => {
       if (!globalMinDate || !globalMaxDate) return [];
-      
+
       const labels = [];
       const currentDate = new Date(globalMinDate);
-      
+
       while (currentDate <= globalMaxDate) {
-        const weekNum = Math.ceil((currentDate.getDate()) / 7);
-        const monthName = currentDate.toLocaleDateString('en-US', { month: 'short' });
+        const weekNum = Math.ceil(currentDate.getDate() / 7);
+        const monthName = currentDate.toLocaleDateString("en-US", {
+          month: "short",
+        });
         labels.push(`${monthName} Wk-${weekNum}`);
         currentDate.setDate(currentDate.getDate() + 7);
       }
-      
+
       return labels;
     };
 
@@ -776,74 +1209,120 @@ export default function TeamDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title={selectedMember} subtitle={`Team Member Profile - ${memberData?.role || ''}`} />
+          <Header
+            title={selectedMember}
+            subtitle={`Team Member Profile - ${memberData?.role || ""}`}
+          />
           <Breadcrumb />
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <div className="bg-blue-50 rounded-lg p-5 shadow-md border border-blue-100">
-              <p className="text-blue-600 text-sm font-medium mb-1">Total Tasks</p>
-              <p className="text-3xl font-bold text-blue-700">{memberData?.totalTasks || 0}</p>
+              <p className="text-blue-600 text-sm font-medium mb-1">
+                Total Tasks
+              </p>
+              <p className="text-3xl font-bold text-blue-700">
+                {memberData?.totalTasks || 0}
+              </p>
             </div>
             <div className="bg-green-50 rounded-lg p-5 shadow-md border border-green-100">
-              <p className="text-green-600 text-sm font-medium mb-1">Completed</p>
-              <p className="text-3xl font-bold text-green-700">{memberData?.completedTasks || 0}</p>
+              <p className="text-green-600 text-sm font-medium mb-1">
+                Completed
+              </p>
+              <p className="text-3xl font-bold text-green-700">
+                {memberData?.completedTasks || 0}
+              </p>
             </div>
             <div className="bg-purple-50 rounded-lg p-5 shadow-md border border-purple-100">
-              <p className="text-purple-600 text-sm font-medium mb-1">Projects</p>
-              <p className="text-3xl font-bold text-purple-700">{memberData?.projectCount || 0}</p>
+              <p className="text-purple-600 text-sm font-medium mb-1">
+                Projects
+              </p>
+              <p className="text-3xl font-bold text-purple-700">
+                {memberData?.projectCount || 0}
+              </p>
             </div>
             <div className="bg-orange-50 rounded-lg p-5 shadow-md border border-orange-100">
-              <p className="text-orange-600 text-sm font-medium mb-1">Progress</p>
-              <p className="text-3xl font-bold text-orange-700">{memberData?.percentage || 0}%</p>
+              <p className="text-orange-600 text-sm font-medium mb-1">
+                Progress
+              </p>
+              <p className="text-3xl font-bold text-orange-700">
+                {memberData?.percentage || 0}%
+              </p>
+            </div>
+            <div className="bg-indigo-50 rounded-lg p-5 shadow-md border border-indigo-100">
+              <p className="text-indigo-600 text-sm font-medium mb-1">
+                Overall KPI
+              </p>
+              <p className="text-3xl font-bold text-indigo-700">
+                {overallKpi}%
+              </p>
             </div>
           </div>
 
           {/* Gantt Chart Style Timeline */}
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-6">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Project Timeline (Gantt View)</h2>
-            <p className="text-slate-600 mb-6">Horizontal timeline showing project duration - Click on any bar to view detailed tasks</p>
-            
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">
+              Project Timeline (Gantt View)
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Horizontal timeline showing project duration - Click on any bar to
+              view detailed tasks
+            </p>
+
             {timelineData.length > 0 ? (
               <div className="overflow-x-auto">
                 <div className="min-w-[800px]">
                   {/* Timeline Header with Week Labels */}
                   <div className="flex mb-6 pb-4 border-b-2 border-slate-300">
-                    <div className="w-48 flex-shrink-0 font-semibold text-slate-700">Projects</div>
+                    <div className="w-48 flex-shrink-0 font-semibold text-slate-700">
+                      Projects
+                    </div>
                     <div className="flex-1 flex justify-between text-xs text-slate-600">
                       {weekLabels.map((label, idx) => (
-                        <div key={idx} className="flex-1 text-center border-l border-slate-200 px-1">
+                        <div
+                          key={idx}
+                          className="flex-1 text-center border-l border-slate-200 px-1"
+                        >
                           {label}
                         </div>
                       ))}
                     </div>
                   </div>
-                  
+
                   {/* Project Timeline Bars */}
                   <div className="space-y-4">
                     {timelineData.map((project, idx) => {
-                      const totalDuration = globalMaxDate.getTime() - globalMinDate.getTime();
-                      const projectStartOffset = ((project.start - globalMinDate.getTime()) / totalDuration) * 100;
-                      const projectWidth = ((project.end - project.start) / totalDuration) * 100;
-                      
+                      const totalDuration =
+                        globalMaxDate.getTime() - globalMinDate.getTime();
+                      const projectStartOffset =
+                        ((project.start - globalMinDate.getTime()) /
+                          totalDuration) *
+                        100;
+                      const projectWidth =
+                        ((project.end - project.start) / totalDuration) * 100;
+
                       return (
-                        <div 
-                          key={idx}
-                          className="flex items-center group"
-                        >
+                        <div key={idx} className="flex items-center group">
                           <div className="w-48 flex-shrink-0 pr-4">
-                            <div className="font-semibold text-slate-800 text-sm truncate">{project.project}</div>
-                            <div className="text-xs text-slate-500">{project.taskCount} tasks</div>
+                            <div className="font-semibold text-slate-800 text-sm truncate">
+                              {project.project}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {project.taskCount} tasks
+                            </div>
                           </div>
-                          
+
                           <div className="flex-1 relative h-12">
                             {/* Grid lines */}
                             <div className="absolute inset-0 flex">
                               {weekLabels.map((_, wIdx) => (
-                                <div key={wIdx} className="flex-1 border-l border-slate-100"></div>
+                                <div
+                                  key={wIdx}
+                                  className="flex-1 border-l border-slate-100"
+                                ></div>
                               ))}
                             </div>
-                            
+
                             {/* Project Bar */}
                             <div
                               onClick={() => {
@@ -859,16 +1338,28 @@ export default function TeamDashboard() {
                             >
                               <div className="h-full flex items-center justify-center px-2">
                                 <span className="text-white text-xs font-semibold truncate">
-                                  {project.startDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - {project.endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                  {project.startDate.toLocaleDateString(
+                                    "en-GB",
+                                    { day: "2-digit", month: "short" }
+                                  )}{" "}
+                                  -{" "}
+                                  {project.endDate.toLocaleDateString("en-GB", {
+                                    day: "2-digit",
+                                    month: "short",
+                                  })}
                                 </span>
                               </div>
-                              
+
                               {/* Tooltip on hover */}
                               <div className="hidden group-hover:block absolute -top-16 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap z-10 shadow-xl">
-                                <div className="font-semibold">{project.project}</div>
+                                <div className="font-semibold">
+                                  {project.project}
+                                </div>
                                 <div>Duration: {project.duration} days</div>
                                 <div>Tasks: {project.taskCount}</div>
-                                <div className="text-blue-300 mt-1">Click to view tasks →</div>
+                                <div className="text-blue-300 mt-1">
+                                  Click to view tasks →
+                                </div>
                                 <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-slate-800"></div>
                               </div>
                             </div>
@@ -882,22 +1373,26 @@ export default function TeamDashboard() {
             ) : (
               <div className="text-center py-12 text-slate-500">
                 <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>No timeline data available. Please ensure tasks have Start Date and Deadline.</p>
+                <p>
+                  No timeline data available. Please ensure tasks have Start
+                  Date and Deadline.
+                </p>
               </div>
             )}
           </div>
 
           {/* All Projects List */}
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">All Projects</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">
+              All Projects
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {projects.map((project, idx) => {
-                const projectTasks = getProjectTasks(selectedMember, project);
-                const completedCount = projectTasks.filter(t => 
-                  (t.status || "").toLowerCase().includes("complete") || 
-                  (t.status || "").toLowerCase().includes("done")
-                ).length;
-                
+                const data = projectKpisData.find(p => p.project === project);
+                const isCompleted = data.completedCount === data.totalTasks;
+                const avgKpi = Math.round(data.projectKpi);
+                const completionPercentage = data.totalTasks > 0 ? Math.round((data.completedCount / data.totalTasks) * 100) : 0;
+
                 return (
                   <div
                     key={idx}
@@ -908,24 +1403,48 @@ export default function TeamDashboard() {
                     className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg p-5 hover:shadow-lg transition-all cursor-pointer border border-slate-200 hover:border-blue-300"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div 
-                        className="w-3 h-3 rounded-full mt-1" 
+                      <div
+                        className="w-3 h-3 rounded-full mt-1"
                         style={{ backgroundColor: COLORS[idx % COLORS.length] }}
                       />
                       <span className="text-xs font-semibold text-slate-600">
-                        {completedCount}/{projectTasks.length} Tasks
+                        {data.completedCount}/{data.totalTasks} Tasks
                       </span>
                     </div>
                     <h3 className="font-bold text-slate-800 mb-3">{project}</h3>
-                    <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
+                    <div className="bg-slate-200 rounded-full h-2 overflow-hidden mb-3">
                       <div
                         className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all"
-                        style={{ width: `${projectTasks.length > 0 ? (completedCount / projectTasks.length) * 100 : 0}%` }}
+                        style={{
+                          width: `${
+                            data.totalTasks > 0
+                              ? (data.completedCount / data.totalTasks) * 100
+                              : 0
+                          }%`,
+                        }}
                       />
                     </div>
-                    <p className="text-xs text-slate-500 mt-2 text-right">
-                      {projectTasks.length > 0 ? Math.round((completedCount / projectTasks.length) * 100) : 0}% Complete
-                    </p>
+                    <div className="mb-2">
+                      {isCompleted ? (
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-2">
+                          <p className="text-purple-800 text-sm font-semibold">
+                            Project KPI: {avgKpi}%
+                          </p>
+                          <p className="text-purple-600 text-xs">
+                            Project {completionPercentage}% Complete
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                          <p className="text-blue-800 text-sm font-semibold">
+                            Under Progress KPI
+                          </p>
+                          <p className="text-blue-600 text-xs">
+                            Project {completionPercentage}% Complete
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -939,19 +1458,28 @@ export default function TeamDashboard() {
   // Tasks View
   if (currentView === "tasks" && selectedProject && selectedMember) {
     const tasks = getProjectTasks(selectedMember, selectedProject);
-    
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title={selectedProject} subtitle={`${selectedMember}'s Tasks`} />
+          <Header
+            title={selectedProject}
+            subtitle={`${selectedMember}'s Tasks`}
+          />
           <Breadcrumb />
 
           <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">Project Tasks Timeline</h2>
+              <h2 className="text-2xl font-bold text-slate-800">
+                Project Tasks Timeline
+              </h2>
               <div className="bg-blue-50 px-6 py-3 rounded-lg">
                 <p className="text-sm text-slate-600">
-                  Total: <span className="font-bold text-blue-600 text-xl">{tasks.length}</span> Tasks
+                  Total:{" "}
+                  <span className="font-bold text-blue-600 text-xl">
+                    {tasks.length}
+                  </span>{" "}
+                  Tasks
                 </p>
               </div>
             </div>
@@ -962,22 +1490,34 @@ export default function TeamDashboard() {
                 <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-blue-200"></div>
                 <div className="space-y-6">
                   {tasks.map((task, idx) => {
-                    const overdue = isOverdue(task.deadline, task.completedDate);
-                    const isCompleted = (task.status || "").toLowerCase().includes("complete") ||
-                                       (task.status || "").toLowerCase().includes("done");
+                    const overdue = isOverdue(
+                      task.deadline,
+                      task.completedDate
+                    );
+                    const isCompleted =
+                      (task.status || "").toLowerCase().includes("complete") ||
+                      (task.status || "").toLowerCase().includes("done");
 
                     return (
                       <div key={idx} className="relative pl-20">
-                        <div className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
-                          isCompleted ? 'bg-green-500' : 'bg-blue-500'
-                        }`}></div>
+                        <div
+                          className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
+                            isCompleted ? "bg-green-500" : "bg-blue-500"
+                          }`}
+                        ></div>
 
                         <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-6 hover:shadow-lg transition-all border border-slate-200 hover:border-blue-300">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
-                              <h4 className="text-lg font-bold text-slate-800 mb-2">{task.name}</h4>
+                              <h4 className="text-lg font-bold text-slate-800 mb-2">
+                                {task.name}
+                              </h4>
                               <div className="flex gap-2 flex-wrap">
-                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(task.status)}`}>
+                                <span
+                                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(
+                                    task.status
+                                  )}`}
+                                >
                                   {task.status}
                                 </span>
                                 <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-slate-700 shadow-sm">
@@ -987,14 +1527,18 @@ export default function TeamDashboard() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 bg-white rounded-lg p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4 bg-white rounded-lg p-4">
                             <div className="flex items-center gap-3">
                               <div className="bg-blue-100 p-2 rounded-lg">
                                 <Clock className="w-5 h-5 text-blue-600" />
                               </div>
                               <div>
-                                <p className="text-xs text-slate-500 font-medium">Start Date</p>
-                                <p className="text-slate-800 font-bold text-sm">{task.startDate}</p>
+                                <p className="text-xs text-slate-500 font-medium">
+                                  Start Date
+                                </p>
+                                <p className="text-slate-800 font-bold text-sm">
+                                  {task.startDate}
+                                </p>
                               </div>
                             </div>
 
@@ -1003,8 +1547,12 @@ export default function TeamDashboard() {
                                 <AlertCircle className="w-5 h-5 text-orange-600" />
                               </div>
                               <div>
-                                <p className="text-xs text-slate-500 font-medium">Deadline</p>
-                                <p className="text-slate-800 font-bold text-sm">{task.deadline}</p>
+                                <p className="text-xs text-slate-500 font-medium">
+                                  Deadline
+                                </p>
+                                <p className="text-slate-800 font-bold text-sm">
+                                  {task.deadline}
+                                </p>
                               </div>
                             </div>
 
@@ -1013,15 +1561,51 @@ export default function TeamDashboard() {
                                 <CheckCircle className="w-5 h-5 text-green-600" />
                               </div>
                               <div>
-                                <p className="text-xs text-slate-500 font-medium">Completed</p>
-                                <p className={`font-bold text-sm ${task.completedDate === "-" ? "text-slate-400" : "text-slate-800"}`}>
+                                <p className="text-xs text-slate-500 font-medium">
+                                  Completed
+                                </p>
+                                <p
+                                  className={`font-bold text-sm ${
+                                    task.completedDate === "-"
+                                      ? "text-slate-400"
+                                      : "text-slate-800"
+                                  }`}
+                                >
                                   {task.completedDate}
                                 </p>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-3">
-                              <div className={`${overdue ? 'bg-red-100' : 'bg-green-100'} p-2 rounded-lg`}>
+                              <div className="bg-purple-100 p-2 rounded-lg">
+                                <BarChart3 className="w-5 h-5 text-purple-600" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500 font-medium">
+                                  KPI
+                                </p>
+                                <p
+                                  className={`font-bold text-sm ${
+                                    task.kpi === null
+                                      ? "text-slate-400"
+                                      : task.kpi >= 80
+                                      ? "text-green-600"
+                                      : task.kpi >= 60
+                                      ? "text-yellow-600"
+                                      : "text-red-600"
+                                  }`}
+                                >
+                                  {task.kpi !== null ? `${task.kpi}%` : "N/A"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`${
+                                  overdue ? "bg-red-100" : "bg-green-100"
+                                } p-2 rounded-lg`}
+                              >
                                 {overdue ? (
                                   <AlertCircle className="w-5 h-5 text-red-600" />
                                 ) : (
@@ -1029,8 +1613,14 @@ export default function TeamDashboard() {
                                 )}
                               </div>
                               <div>
-                                <p className="text-xs text-slate-500 font-medium">Status</p>
-                                <p className={`font-bold text-sm ${overdue ? "text-red-600" : "text-green-600"}`}>
+                                <p className="text-xs text-slate-500 font-medium">
+                                  Status
+                                </p>
+                                <p
+                                  className={`font-bold text-sm ${
+                                    overdue ? "text-red-600" : "text-green-600"
+                                  }`}
+                                >
                                   {overdue ? "⚠️ Overdue" : "✓ On Time"}
                                 </p>
                               </div>
@@ -1054,61 +1644,102 @@ export default function TeamDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title="All Team Members" subtitle={`${selectedManager}'s Team`} />
+          <Header
+            title="All Team Members"
+            subtitle={`${selectedManager}'s Team`}
+          />
           <Breadcrumb />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teamData.map((member, idx) => (
-              <div
-                key={idx}
-                onClick={() => {
-                  setSelectedMember(member.name);
-                  setCurrentView("member");
-                }}
-                className="bg-white rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 hover:shadow-2xl transition-all border border-slate-200 hover:border-blue-300"
-              >
-                <div className="flex items-center gap-4 mb-4">
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-                  >
-                    <Users className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-800">{member.name}</h3>
-                    <p className="text-slate-500">{member.role}</p>
-                  </div>
-                </div>
+            {teamData.map((member, idx) => {
+              const completedTasks = member.completedTasks;
+              const inProgressTasks = member.totalTasks - member.completedTasks;
+              const overallKpi = member.kpi;
 
-                <div className="space-y-3 mb-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Total Tasks</span>
-                    <span className="font-bold text-slate-800">{member.totalTasks}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Completed</span>
-                    <span className="font-bold text-green-600">{member.completedTasks}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Projects</span>
-                    <span className="font-bold text-purple-600">{member.projectCount}</span>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-slate-600">Progress</span>
-                    <span className="font-bold text-slate-800">{member.percentage}%</span>
-                  </div>
-                  <div className="bg-slate-200 rounded-full h-3 overflow-hidden">
+              return (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setSelectedMember(member.name);
+                    setCurrentView("member");
+                  }}
+                  className="bg-white rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 hover:shadow-2xl transition-all border border-slate-200 hover:border-blue-300"
+                >
+                  <div className="flex items-center gap-4 mb-4">
                     <div
-                      className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all"
-                      style={{ width: `${member.percentage}%` }}
-                    />
+                      className="w-12 h-12 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                    >
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">
+                        {member.name}
+                      </h3>
+                      <p className="text-slate-500">{member.role}</p>
+                    </div>
+                  </div>
+
+                  {/* KPI Section */}
+                  <div className="bg-indigo-50 rounded-lg p-3 mb-4 border border-indigo-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-indigo-600 font-medium text-sm">Overall KPI</span>
+                      <span className={`font-bold text-lg ${
+                        overallKpi >= 80 ? 'text-green-600' :
+                        overallKpi >= 60 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>{overallKpi}%</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="text-green-600 text-xs font-medium">Completed</span>
+                      </div>
+                      <p className="text-green-700 font-bold text-lg">{completedTasks}</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <span className="text-blue-600 text-xs font-medium">In Progress</span>
+                      </div>
+                      <p className="text-blue-700 font-bold text-lg">{inProgressTasks}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Total Tasks</span>
+                      <span className="font-bold text-slate-800">
+                        {member.totalTasks}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Projects</span>
+                      <span className="font-bold text-purple-600">
+                        {member.projectCount}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-slate-600">Progress</span>
+                      <span className="font-bold text-slate-800">
+                        {member.percentage}%
+                      </span>
+                    </div>
+                    <div className="bg-slate-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all"
+                        style={{ width: `${member.percentage}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1119,13 +1750,17 @@ export default function TeamDashboard() {
   if (currentView === "all-projects" && selectedManager) {
     // Get all unique projects for this manager's team
     const projectsMap = {};
-    teamData.forEach(member => {
+    teamData.forEach((member) => {
       excelData.forEach((row) => {
         const manager = row.Manager || row.ManagerName;
         const memberName = row.TeamMember || row.Member || row.Name;
         const project = row.Project || row.ProjectName;
 
-        if (manager === selectedManager && memberName === member.name && project) {
+        if (
+          manager === selectedManager &&
+          memberName === member.name &&
+          project
+        ) {
           if (!projectsMap[project]) {
             projectsMap[project] = {
               name: project,
@@ -1134,29 +1769,66 @@ export default function TeamDashboard() {
               members: new Set(),
               startDates: [],
               endDates: [],
+              kpis: [],
             };
           }
           projectsMap[project].totalTasks++;
           const status = (row.Status || "").toLowerCase();
-          if (status.includes("completed") || status.includes("complete") || status.includes("done")) {
+          if (
+            status.includes("completed") ||
+            status.includes("complete") ||
+            status.includes("done")
+          ) {
             projectsMap[project].completedTasks++;
           }
           projectsMap[project].members.add(memberName);
 
           const startDate = row.StartDate;
           const deadline = row.Deadline || row.DueDate;
-          if (startDate) projectsMap[project].startDates.push(parseDate(formatExcelDate(startDate)));
-          if (deadline) projectsMap[project].endDates.push(parseDate(formatExcelDate(deadline)));
+          const completedDate = row.CompletedDate || row.ActualDate || row.CompletionDate;
+
+          const formattedStart = formatExcelDate(startDate);
+          const formattedDeadline = formatExcelDate(deadline);
+          const formattedCompleted = formatExcelDate(completedDate);
+
+          const kpi = calculateKPI(formattedStart, formattedCompleted, formattedDeadline);
+
+          if (kpi !== null) {
+            projectsMap[project].kpis.push(kpi);
+          }
+
+          if (startDate)
+            projectsMap[project].startDates.push(
+              parseDate(formattedStart)
+            );
+          if (deadline)
+            projectsMap[project].endDates.push(
+              parseDate(formattedDeadline)
+            );
         }
       });
     });
 
-    const projectsData = Object.values(projectsMap);
+    const projectsData = Object.values(projectsMap).map((project) => {
+      const isCompleted = project.completedTasks === project.totalTasks;
+      const avgKpi = project.kpis.length > 0 ? Math.round(project.kpis.reduce((a, b) => a + b, 0) / project.kpis.length) : null;
+      const completionPercentage = project.totalTasks > 0 ? Math.round((project.completedTasks / project.totalTasks) * 100) : 0;
+
+      return {
+        ...project,
+        isCompleted,
+        avgKpi,
+        completionPercentage,
+      };
+    });
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title="All Projects" subtitle={`${selectedManager}'s Team Projects`} />
+          <Header
+            title="All Projects"
+            subtitle={`${selectedManager}'s Team Projects`}
+          />
           <Breadcrumb />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1177,23 +1849,38 @@ export default function TeamDashboard() {
                     <FolderOpen className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-slate-800">{project.name}</h3>
-                    <p className="text-slate-500">{project.members.size} team members</p>
+                    <h3 className="text-xl font-bold text-slate-800">
+                      {project.name}
+                    </h3>
+                    <p className="text-slate-500">
+                      {project.members.size} team members
+                    </p>
                   </div>
                 </div>
 
                 <div className="space-y-3 mb-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Total Tasks</span>
-                    <span className="font-bold text-slate-800">{project.totalTasks}</span>
+                    <span className="font-bold text-slate-800">
+                      {project.totalTasks}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Completed</span>
-                    <span className="font-bold text-green-600">{project.completedTasks}</span>
+                    <span className="font-bold text-green-600">
+                      {project.completedTasks}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Progress</span>
-                    <span className="font-bold text-slate-800">{Math.round(project.totalTasks > 0 ? (project.completedTasks / project.totalTasks) * 100 : 0)}%</span>
+                    <span className="font-bold text-slate-800">
+                      {Math.round(
+                        project.totalTasks > 0
+                          ? (project.completedTasks / project.totalTasks) * 100
+                          : 0
+                      )}
+                      %
+                    </span>
                   </div>
                 </div>
 
@@ -1201,14 +1888,46 @@ export default function TeamDashboard() {
                   <div className="bg-slate-200 rounded-full h-3 overflow-hidden">
                     <div
                       className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all"
-                      style={{ width: `${project.totalTasks > 0 ? (project.completedTasks / project.totalTasks) * 100 : 0}%` }}
+                      style={{
+                        width: `${
+                          project.totalTasks > 0
+                            ? (project.completedTasks / project.totalTasks) *
+                              100
+                            : 0
+                        }%`,
+                      }}
                     />
                   </div>
                 </div>
 
+                <div className="mb-4">
+                  {project.isCompleted ? (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <p className="text-purple-800 text-sm font-semibold">
+                        Project KPI: {project.avgKpi !== null ? `${project.avgKpi}%` : "N/A"}
+                      </p>
+                      <p className="text-purple-600 text-xs mt-1">
+                        Project {project.completionPercentage}% Complete
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-blue-800 text-sm font-semibold">
+                        Under Progress KPI
+                      </p>
+                      <p className="text-blue-600 text-xs mt-1">
+                        Project {project.completionPercentage}% Complete
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex flex-wrap gap-1">
                   {Array.from(project.members).map((memberName, memberIdx) => (
-                    <span key={memberIdx} className="inline-block px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full">
+                    <span
+                      key={memberIdx}
+                      className="inline-block px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full"
+                    >
                       {memberName}
                     </span>
                   ))}
@@ -1224,54 +1943,77 @@ export default function TeamDashboard() {
   // All Completions View
   if (currentView === "all-completions" && selectedManager) {
     // Get all completed tasks with dates
-    const completedTasks = excelData.filter((row) => {
-      const manager = row.Manager || row.ManagerName;
-      const status = (row.Status || "").toLowerCase();
-      return manager === selectedManager && (status.includes("completed") || status.includes("complete") || status.includes("done"));
-    }).map((row) => {
-      const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate);
-      return {
-        taskName: row.Task || row.TaskName || "Unnamed Task",
-        memberName: row.TeamMember || row.Member || row.Name,
-        projectName: row.Project || row.ProjectName,
-        completedDate,
-        priority: row.Priority || "Medium",
-        startDate: formatExcelDate(row.StartDate),
-        deadline: formatExcelDate(row.Deadline || row.DueDate),
-      };
-    }).sort((a, b) => {
-      if (a.completedDate === "-" && b.completedDate === "-") return 0;
-      if (a.completedDate === "-") return 1;
-      if (b.completedDate === "-") return -1;
-      const dateA = parseDate(a.completedDate);
-      const dateB = parseDate(b.completedDate);
-      if (!dateA) return 1;
-      if (!dateB) return -1;
-      return dateB - dateA; // Most recent first
-    });
+    const completedTasks = excelData
+      .filter((row) => {
+        const manager = row.Manager || row.ManagerName;
+        const status = (row.Status || "").toLowerCase();
+        return (
+          manager === selectedManager &&
+          (status.includes("completed") ||
+            status.includes("complete") ||
+            status.includes("done"))
+        );
+      })
+      .map((row) => {
+        const completedDate = formatExcelDate(
+          row.CompletedDate || row.ActualDate || row.CompletionDate
+        );
+        return {
+          taskName: row.Task || row.TaskName || "Unnamed Task",
+          memberName: row.TeamMember || row.Member || row.Name,
+          projectName: row.Project || row.ProjectName,
+          completedDate,
+          priority: row.Priority || "Medium",
+          startDate: formatExcelDate(row.StartDate),
+          deadline: formatExcelDate(row.Deadline || row.DueDate),
+        };
+      })
+      .sort((a, b) => {
+        if (a.completedDate === "-" && b.completedDate === "-") return 0;
+        if (a.completedDate === "-") return 1;
+        if (b.completedDate === "-") return -1;
+        const dateA = parseDate(a.completedDate);
+        const dateB = parseDate(b.completedDate);
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateB - dateA; // Most recent first
+      });
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title="All Completions" subtitle={`${selectedManager}'s Completed Tasks`} />
+          <Header
+            title="All Completions"
+            subtitle={`${selectedManager}'s Completed Tasks`}
+          />
           <Breadcrumb />
 
           <div className="bg-white rounded-xl p-8 shadow-lg border border-slate-200 mb-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">Completed Tasks Timeline</h2>
+              <h2 className="text-2xl font-bold text-slate-800">
+                Completed Tasks Timeline
+              </h2>
               <div className="bg-green-50 px-6 py-3 rounded-lg">
                 <p className="text-sm text-slate-600">
-                  Total Completions: <span className="font-bold text-green-600 text-xl">{completedTasks.length}</span>
+                  Total Completions:{" "}
+                  <span className="font-bold text-green-600 text-xl">
+                    {completedTasks.length}
+                  </span>
                 </p>
               </div>
             </div>
 
             <div className="space-y-4">
               {completedTasks.map((task, idx) => (
-                <div key={idx} className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-slate-200 hover:shadow-md transition-all">
+                <div
+                  key={idx}
+                  className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 border border-slate-200 hover:shadow-md transition-all"
+                >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <h4 className="text-lg font-bold text-slate-800 mb-2">{task.taskName}</h4>
+                      <h4 className="text-lg font-bold text-slate-800 mb-2">
+                        {task.taskName}
+                      </h4>
                       <div className="flex gap-2 flex-wrap">
                         <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-green-500 shadow-sm">
                           ✓ Completed
@@ -1283,7 +2025,9 @@ export default function TeamDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-slate-500">Assigned to</p>
-                      <p className="font-bold text-slate-800">{task.memberName}</p>
+                      <p className="font-bold text-slate-800">
+                        {task.memberName}
+                      </p>
                     </div>
                   </div>
 
@@ -1293,8 +2037,12 @@ export default function TeamDashboard() {
                         <Clock className="w-4 h-4 text-blue-600" />
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500 font-medium">Project</p>
-                        <p className="text-slate-800 font-bold text-sm">{task.projectName}</p>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Project
+                        </p>
+                        <p className="text-slate-800 font-bold text-sm">
+                          {task.projectName}
+                        </p>
                       </div>
                     </div>
 
@@ -1303,8 +2051,12 @@ export default function TeamDashboard() {
                         <Users className="w-4 h-4 text-purple-600" />
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500 font-medium">Team Member</p>
-                        <p className="text-slate-800 font-bold text-sm">{task.memberName}</p>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Team Member
+                        </p>
+                        <p className="text-slate-800 font-bold text-sm">
+                          {task.memberName}
+                        </p>
                       </div>
                     </div>
 
@@ -1313,8 +2065,16 @@ export default function TeamDashboard() {
                         <AlertCircle className="w-4 h-4 text-orange-600" />
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500 font-medium">Deadline</p>
-                        <p className={`font-bold text-sm ${task.deadline === "N/A" ? "text-slate-400" : "text-slate-800"}`}>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Deadline
+                        </p>
+                        <p
+                          className={`font-bold text-sm ${
+                            task.deadline === "N/A"
+                              ? "text-slate-400"
+                              : "text-slate-800"
+                          }`}
+                        >
                           {task.deadline}
                         </p>
                       </div>
@@ -1325,8 +2085,16 @@ export default function TeamDashboard() {
                         <CheckCircle className="w-4 h-4 text-green-600" />
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500 font-medium">Completed On</p>
-                        <p className={`font-bold text-sm ${task.completedDate === "-" ? "text-slate-400" : "text-green-600"}`}>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Completed On
+                        </p>
+                        <p
+                          className={`font-bold text-sm ${
+                            task.completedDate === "-"
+                              ? "text-slate-400"
+                              : "text-green-600"
+                          }`}
+                        >
                           {task.completedDate}
                         </p>
                       </div>
@@ -1338,7 +2106,9 @@ export default function TeamDashboard() {
               {completedTasks.length === 0 && (
                 <div className="text-center py-12">
                   <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 opacity-50" />
-                  <p className="text-slate-500 text-lg">No completed tasks yet.</p>
+                  <p className="text-slate-500 text-lg">
+                    No completed tasks yet.
+                  </p>
                 </div>
               )}
             </div>
@@ -1356,45 +2126,118 @@ export default function TeamDashboard() {
 
     if (selectedProject) {
       // Show tasks for a specific project
-      allTasks = excelData.filter((row) => {
-        const manager = row.Manager || row.ManagerName;
-        const project = row.Project || row.ProjectName;
-        return manager === selectedManager && project === selectedProject;
-      }).map((row) => {
-        const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
-        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
+      allTasks = excelData
+        .filter((row) => {
+          const manager = row.Manager || row.ManagerName;
+          const project = row.Project || row.ProjectName;
+          return manager === selectedManager && project === selectedProject;
+        })
+        .map((row) => {
+          const deadline = formatExcelDate(
+            row.Deadline || row.DueDate || "N/A"
+          );
+          const completedDate = formatExcelDate(
+            row.CompletedDate || row.ActualDate || row.CompletionDate || "-"
+          );
+          const startDate = formatExcelDate(row.StartDate || "-");
+          const kpi = calculateKPI(startDate, completedDate, deadline);
 
-        return {
-          name: row.Task || row.TaskName || "Unnamed Task",
-          status: row.Status || "Pending",
-          deadline,
-          completedDate,
-          priority: row.Priority || "Medium",
-          startDate: formatExcelDate(row.StartDate || "-"),
-          memberName: row.TeamMember || row.Member || row.Name,
-          projectName: row.Project || row.ProjectName,
-        };
-      });
+          return {
+            name: row.Task || row.TaskName || "Unnamed Task",
+            status: row.Status || "Pending",
+            deadline,
+            completedDate,
+            priority: row.Priority || "Medium",
+            startDate,
+            kpi,
+            memberName: row.TeamMember || row.Member || row.Name,
+            projectName: row.Project || row.ProjectName,
+          };
+        });
     } else {
       // Show all tasks for all projects
-      allTasks = excelData.filter((row) => {
-        const manager = row.Manager || row.ManagerName;
-        return manager === selectedManager;
-      }).map((row) => {
-        const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
-        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
+      let tasksData = excelData
+        .filter((row) => {
+          const manager = row.Manager || row.ManagerName;
+          return manager === selectedManager;
+        })
+        .map((row) => {
+          const deadline = formatExcelDate(
+            row.Deadline || row.DueDate || "N/A"
+          );
+          const completedDate = formatExcelDate(
+            row.CompletedDate || row.ActualDate || row.CompletionDate || "-"
+          );
+          const startDate = formatExcelDate(row.StartDate || "-");
+          const kpi = calculateKPI(startDate, completedDate, deadline);
 
-        return {
-          name: row.Task || row.TaskName || "Unnamed Task",
-          status: row.Status || "Pending",
-          deadline,
-          completedDate,
-          priority: row.Priority || "Medium",
-          startDate: formatExcelDate(row.StartDate || "-"),
-          memberName: row.TeamMember || row.Member || row.Name,
-          projectName: row.Project || row.ProjectName,
-        };
-      });
+          return {
+            name: row.Task || row.TaskName || "Unnamed Task",
+            status: row.Status || "Pending",
+            deadline,
+            completedDate,
+            priority: row.Priority || "Medium",
+            startDate,
+            kpi,
+            memberName: row.TeamMember || row.Member || row.Name,
+            projectName: row.Project || row.ProjectName,
+          };
+        });
+
+      // Apply all advanced filters
+      if (selectedProjectFilters.length > 0) {
+        tasksData = tasksData.filter(task => selectedProjectFilters.includes(task.projectName));
+      }
+
+      if (selectedStatusFilters.length > 0) {
+        tasksData = tasksData.filter(task => {
+          // Map UI status names to actual task status values
+          return selectedStatusFilters.some(selectedStatus => {
+            const taskStatus = (task.status || "").toLowerCase().trim();
+            const selectedStatusLower = selectedStatus.toLowerCase();
+
+            if (selectedStatusLower === 'completed') {
+              return taskStatus.includes('complete') || taskStatus.includes('done');
+            } else if (selectedStatusLower === 'pending') {
+              return taskStatus.includes('pending') || taskStatus.includes('waiting') || taskStatus === '';
+            } else if (selectedStatusLower === 'in progress') {
+              return taskStatus.includes('progress') || taskStatus.includes('active') || taskStatus.includes('started') || taskStatus.includes('in progress');
+            } else if (selectedStatusLower === 'blocked') {
+              return taskStatus.includes('block');
+            }
+            return false;
+          });
+        });
+      }
+
+      if (selectedTimingFilters.length > 0) {
+        tasksData = tasksData.filter(task => {
+          const overdue = isOverdue(task.deadline, task.completedDate);
+          return selectedTimingFilters.some(timing => {
+            if (timing === 'On Time') return !overdue;
+            if (timing === 'Overdue') return overdue;
+            return false;
+          });
+        });
+      }
+
+      if (selectedKpiFilters.length > 0) {
+        tasksData = tasksData.filter(task => {
+          if (task.kpi === null) return false;
+
+          return selectedKpiFilters.some(kpiRange => {
+            if (kpiRange === 'Below 50%') return task.kpi < 50;
+            if (kpiRange === '50-60%') return task.kpi >= 50 && task.kpi < 60;
+            if (kpiRange === '60-70%') return task.kpi >= 60 && task.kpi < 70;
+            if (kpiRange === '70-80%') return task.kpi >= 70 && task.kpi < 80;
+            if (kpiRange === '80-90%') return task.kpi >= 80 && task.kpi < 90;
+            if (kpiRange === '90%+') return task.kpi >= 90;
+            return false;
+          });
+        });
+      }
+
+      allTasks = tasksData;
     }
 
     allTasks.sort((a, b) => {
@@ -1408,39 +2251,266 @@ export default function TeamDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
-          <Header title={projectName ? `All Tasks - ${projectName}` : "All Tasks"} subtitle={`${selectedManager}'s Team Tasks`} />
+          <Header
+            title={projectName ? `All Tasks - ${projectName}` : "All Tasks"}
+            subtitle={`${selectedManager}'s Team Tasks`}
+          />
           <Breadcrumb />
 
           <div className="bg-white rounded-xl p-8 shadow-lg border border-slate-200 mb-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">{projectName ? `${projectName} Tasks` : "All Team Tasks"}</h2>
-              <div className="bg-blue-50 px-6 py-3 rounded-lg">
-                <p className="text-sm text-slate-600">
-                  Total Tasks: <span className="font-bold text-blue-600 text-xl">{allTasks.length}</span>
-                </p>
+              <h2 className="text-2xl font-bold text-slate-800">
+                {projectName ? `${projectName} Tasks` : "All Team Tasks"}
+              </h2>
+              <div className="flex items-center gap-4">
+                {!selectedProject && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    >
+                      <Filter className="w-4 h-4" />
+                      Filters
+                      {[...selectedProjectFilters, ...selectedStatusFilters, ...selectedTimingFilters, ...selectedKpiFilters].length > 0 && (
+                        <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                          {[...selectedProjectFilters, ...selectedStatusFilters, ...selectedTimingFilters, ...selectedKpiFilters].length}
+                        </span>
+                      )}
+                    </button>
+
+                    {isFiltersOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-slate-200 z-50 max-h-96 overflow-y-auto">
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="font-semibold text-slate-800">Advanced Filters</h4>
+                            <button
+                              onClick={() => setIsFiltersOpen(false)}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+
+                          {/* Projects Filter */}
+                          <div className="mb-4">
+                            <h5 className="font-medium text-slate-700 mb-2">Projects</h5>
+                            <div className="space-y-2">
+                              {(() => {
+                                const projectsSet = new Set();
+                                excelData.forEach(row => {
+                                  const manager = row.Manager || row.ManagerName;
+                                  const project = row.Project || row.ProjectName;
+                                  if (manager === selectedManager && project) {
+                                    projectsSet.add(project);
+                                  }
+                                });
+                                return Array.from(projectsSet).sort().map((project) => (
+                                  <label key={project} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedProjectFilters.includes(project)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedProjectFilters([...selectedProjectFilters, project]);
+                                        } else {
+                                          setSelectedProjectFilters(selectedProjectFilters.filter(p => p !== project));
+                                        }
+                                      }}
+                                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-slate-700">{project}</span>
+                                  </label>
+                                ));
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* Status Filter */}
+                          <div className="mb-4">
+                            <h5 className="font-medium text-slate-700 mb-2">Status</h5>
+                            <div className="space-y-2">
+                              {['Completed', 'Pending', 'In Progress', 'Blocked'].map((status) => (
+                                <label key={status} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedStatusFilters.includes(status)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedStatusFilters([...selectedStatusFilters, status]);
+                                      } else {
+                                        setSelectedStatusFilters(selectedStatusFilters.filter(s => s !== status));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm text-slate-700">{status}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Time Status Filter */}
+                          <div className="mb-4">
+                            <h5 className="font-medium text-slate-700 mb-2">Time Status</h5>
+                            <div className="space-y-2">
+                              {['On Time', 'Overdue'].map((timing) => (
+                                <label key={timing} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTimingFilters.includes(timing)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedTimingFilters([...selectedTimingFilters, timing]);
+                                      } else {
+                                        setSelectedTimingFilters(selectedTimingFilters.filter(t => t !== timing));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm text-slate-700">{timing}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* KPI Range Filter */}
+                          <div className="mb-4">
+                            <h5 className="font-medium text-slate-700 mb-2">KPI Range</h5>
+                            <div className="space-y-2">
+                              {['Below 50%', '50-60%', '60-70%', '70-80%', '80-90%', '90%+'].map((kpiRange) => (
+                                <label key={kpiRange} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedKpiFilters.includes(kpiRange)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedKpiFilters([...selectedKpiFilters, kpiRange]);
+                                      } else {
+                                        setSelectedKpiFilters(selectedKpiFilters.filter(k => k !== kpiRange));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm text-slate-700">{kpiRange}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-4 border-t border-slate-200">
+                            <button
+                              onClick={() => {
+                                setSelectedProjectFilters([]);
+                                setSelectedStatusFilters([]);
+                                setSelectedTimingFilters([]);
+                                setSelectedKpiFilters([]);
+                              }}
+                              className="flex-1 px-4 py-2 text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                            >
+                              Clear All
+                            </button>
+                            <button
+                              onClick={() => setIsFiltersOpen(false)}
+                              className="flex-1 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                            >
+                              Apply Filters
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="bg-blue-50 px-6 py-3 rounded-lg">
+                  <p className="text-sm text-slate-600">
+                    Total Tasks:{" "}
+                    <span className="font-bold text-blue-600 text-xl">
+                      {allTasks.length}
+                    </span>
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* Active Filters Display */}
+            {!selectedProject && [...selectedProjectFilters, ...selectedStatusFilters, ...selectedTimingFilters, ...selectedKpiFilters].length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                {selectedProjectFilters.map(filter => (
+                  <span key={`project-${filter}`} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                    {filter}
+                    <button
+                      onClick={() => setSelectedProjectFilters(selectedProjectFilters.filter(f => f !== filter))}
+                      className="hover:text-blue-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {selectedStatusFilters.map(filter => (
+                  <span key={`status-${filter}`} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                    {filter}
+                    <button
+                      onClick={() => setSelectedStatusFilters(selectedStatusFilters.filter(f => f !== filter))}
+                      className="hover:text-green-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {selectedTimingFilters.map(filter => (
+                  <span key={`timing-${filter}`} className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
+                    {filter}
+                    <button
+                      onClick={() => setSelectedTimingFilters(selectedTimingFilters.filter(f => f !== filter))}
+                      className="hover:text-orange-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {selectedKpiFilters.map(filter => (
+                  <span key={`kpi-${filter}`} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                    {filter}
+                    <button
+                      onClick={() => setSelectedKpiFilters(selectedKpiFilters.filter(f => f !== filter))}
+                      className="hover:text-purple-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="relative">
               <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-blue-200"></div>
               <div className="space-y-6">
                 {allTasks.map((task, idx) => {
                   const overdue = isOverdue(task.deadline, task.completedDate);
-                  const isCompleted = (task.status || "").toLowerCase().includes("complete") ||
-                                      (task.status || "").toLowerCase().includes("done");
+                  const isCompleted =
+                    (task.status || "").toLowerCase().includes("complete") ||
+                    (task.status || "").toLowerCase().includes("done");
 
                   return (
                     <div key={idx} className="relative pl-20">
-                      <div className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
-                        isCompleted ? 'bg-green-500' : 'bg-blue-500'
-                      }`}></div>
+                      <div
+                        className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
+                          isCompleted ? "bg-green-500" : "bg-blue-500"
+                        }`}
+                      ></div>
 
                       <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-6 hover:shadow-lg transition-all border border-slate-200">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
-                            <h4 className="text-lg font-bold text-slate-800 mb-2">{task.name}</h4>
+                            <h4 className="text-lg font-bold text-slate-800 mb-2">
+                              {task.name}
+                            </h4>
                             <div className="flex gap-2 flex-wrap mb-2">
-                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(task.status)}`}>
+                              <span
+                                className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(
+                                  task.status
+                                )}`}
+                              >
                                 {task.status}
                               </span>
                               <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-slate-700 shadow-sm">
@@ -1448,20 +2518,34 @@ export default function TeamDashboard() {
                               </span>
                             </div>
                             <div className="flex gap-4 text-sm">
-                              <span className="text-slate-600">Project: <span className="font-semibold">{task.projectName}</span></span>
-                              <span className="text-slate-600">Assigned: <span className="font-semibold">{task.memberName}</span></span>
+                              <span className="text-slate-600">
+                                Project:{" "}
+                                <span className="font-semibold">
+                                  {task.projectName}
+                                </span>
+                              </span>
+                              <span className="text-slate-600">
+                                Assigned:{" "}
+                                <span className="font-semibold">
+                                  {task.memberName}
+                                </span>
+                              </span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 bg-white rounded-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4 bg-white rounded-lg p-4">
                           <div className="flex items-center gap-3">
                             <div className="bg-blue-100 p-2 rounded-lg">
                               <Clock className="w-5 h-5 text-blue-600" />
                             </div>
                             <div>
-                              <p className="text-xs text-slate-500 font-medium">Start Date</p>
-                              <p className="text-slate-800 font-bold text-sm">{task.startDate}</p>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Start Date
+                              </p>
+                              <p className="text-slate-800 font-bold text-sm">
+                                {task.startDate}
+                              </p>
                             </div>
                           </div>
 
@@ -1470,8 +2554,12 @@ export default function TeamDashboard() {
                               <AlertCircle className="w-5 h-5 text-orange-600" />
                             </div>
                             <div>
-                              <p className="text-xs text-slate-500 font-medium">Deadline</p>
-                              <p className="text-slate-800 font-bold text-sm">{task.deadline}</p>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Deadline
+                              </p>
+                              <p className="text-slate-800 font-bold text-sm">
+                                {task.deadline}
+                              </p>
                             </div>
                           </div>
 
@@ -1480,15 +2568,51 @@ export default function TeamDashboard() {
                               <CheckCircle className="w-5 h-5 text-green-600" />
                             </div>
                             <div>
-                              <p className="text-xs text-slate-500 font-medium">Completed</p>
-                              <p className={`font-bold text-sm ${task.completedDate === "-" ? "text-slate-400" : "text-slate-800"}`}>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Completed
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  task.completedDate === "-"
+                                    ? "text-slate-400"
+                                    : "text-slate-800"
+                                }`}
+                              >
                                 {task.completedDate}
                               </p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-3">
-                            <div className={`${overdue ? 'bg-red-100' : 'bg-green-100'} p-2 rounded-lg`}>
+                            <div className="bg-purple-100 p-2 rounded-lg">
+                              <BarChart3 className="w-5 h-5 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                KPI
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  task.kpi === null
+                                    ? "text-slate-400"
+                                    : task.kpi >= 80
+                                    ? "text-green-600"
+                                    : task.kpi >= 60
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {task.kpi !== null ? `${task.kpi}%` : "N/A"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`${
+                                overdue ? "bg-red-100" : "bg-green-100"
+                              } p-2 rounded-lg`}
+                            >
                               {overdue ? (
                                 <AlertCircle className="w-5 h-5 text-red-600" />
                               ) : (
@@ -1496,8 +2620,14 @@ export default function TeamDashboard() {
                               )}
                             </div>
                             <div>
-                              <p className="text-xs text-slate-500 font-medium">Status</p>
-                              <p className={`font-bold text-sm ${overdue ? "text-red-600" : "text-green-600"}`}>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Status
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  overdue ? "text-red-600" : "text-green-600"
+                                }`}
+                              >
                                 {overdue ? "⚠️ Overdue" : "✓ On Time"}
                               </p>
                             </div>
@@ -1517,6 +2647,837 @@ export default function TeamDashboard() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // In Progress Tasks View
+  if (currentView === "in-progress-tasks" && selectedManager) {
+    // Get all tasks for the selected manager that are NOT completed
+    let inProgressTasks = excelData
+      .filter((row) => {
+        const manager = row.Manager || row.ManagerName;
+        if (manager !== selectedManager) return false;
+
+        const status = (row.Status || "").toLowerCase();
+        // Include tasks that are NOT fully completed
+        return !(
+          status.includes("completed") ||
+          status.includes("complete") ||
+          status.includes("done")
+        );
+      })
+      .map((row) => {
+        const deadline = formatExcelDate(
+          row.Deadline || row.DueDate || "N/A"
+        );
+        const completedDate = formatExcelDate(
+          row.CompletedDate || row.ActualDate || row.CompletionDate || "-"
+        );
+        const startDate = formatExcelDate(row.StartDate || "-");
+        const kpi = calculateKPI(startDate, completedDate, deadline);
+
+        return {
+          name: row.Task || row.TaskName || "Unnamed Task",
+          status: row.Status || "Pending",
+          deadline,
+          completedDate,
+          priority: row.Priority || "Medium",
+          startDate,
+          kpi,
+          memberName: row.TeamMember || row.Member || row.Name,
+          projectName: row.Project || row.ProjectName,
+        };
+      })
+      .sort((a, b) => {
+        const dateA = parseDate(a.deadline);
+        const dateB = parseDate(b.deadline);
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateA - dateB;
+      });
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header
+            title="In Progress Tasks"
+            subtitle={`${selectedManager}'s Team - Tasks Not Yet Completed`}
+          />
+          <Breadcrumb />
+
+          <div className="bg-white rounded-xl p-8 shadow-lg border border-slate-200 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-800">
+                Tasks in Progress
+              </h2>
+              <div className="bg-blue-50 px-6 py-3 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  Tasks in Progress:{" "}
+                  <span className="font-bold text-blue-600 text-xl">
+                    {inProgressTasks.length}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-blue-200"></div>
+              <div className="space-y-6">
+                {inProgressTasks.map((task, idx) => {
+                  const overdue = isOverdue(task.deadline, task.completedDate);
+                  const isCompleted =
+                    (task.status || "").toLowerCase().includes("complete") ||
+                    (task.status || "").toLowerCase().includes("done");
+
+                  return (
+                    <div key={idx} className="relative pl-20">
+                      <div
+                        className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
+                          overdue ? "bg-red-500" : "bg-yellow-500"
+                        }`}
+                      ></div>
+
+                      <div className="bg-gradient-to-r from-slate-50 to-yellow-50 rounded-xl p-6 hover:shadow-lg transition-all border border-slate-200">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h4 className="text-lg font-bold text-slate-800 mb-2">
+                              {task.name}
+                            </h4>
+                            <div className="flex gap-2 flex-wrap mb-2">
+                              <span
+                                className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(
+                                  task.status
+                                )}`}
+                              >
+                                {task.status}
+                              </span>
+                              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-slate-700 shadow-sm">
+                                Priority: {task.priority}
+                              </span>
+                              {overdue && (
+                                <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-red-500 shadow-sm">
+                                  ⚠️ Overdue
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-4 text-sm">
+                              <span className="text-slate-600">
+                                Project:{" "}
+                                <span className="font-semibold">
+                                  {task.projectName}
+                                </span>
+                              </span>
+                              <span className="text-slate-600">
+                                Assigned:{" "}
+                                <span className="font-semibold">
+                                  {task.memberName}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4 bg-white rounded-lg p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-blue-100 p-2 rounded-lg">
+                              <Clock className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Start Date
+                              </p>
+                              <p className="text-slate-800 font-bold text-sm">
+                                {task.startDate}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-orange-100 p-2 rounded-lg">
+                              <AlertCircle className="w-5 h-5 text-orange-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Deadline
+                              </p>
+                              <p className="text-slate-800 font-bold text-sm">
+                                {task.deadline}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-green-100 p-2 rounded-lg">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Completed
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  task.completedDate === "-"
+                                    ? "text-slate-400"
+                                    : "text-slate-800"
+                                }`}
+                              >
+                                {task.completedDate}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-purple-100 p-2 rounded-lg">
+                              <BarChart3 className="w-5 h-5 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                KPI
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  task.kpi === null
+                                    ? "text-slate-400"
+                                    : task.kpi >= 80
+                                    ? "text-green-600"
+                                    : task.kpi >= 60
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {task.kpi !== null ? `${task.kpi}%` : "N/A"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`${
+                                overdue ? "bg-red-100" : "bg-yellow-100"
+                              } p-2 rounded-lg`}
+                            >
+                              {overdue ? (
+                                <AlertCircle className="w-5 h-5 text-red-600" />
+                              ) : (
+                                <Clock className="w-5 h-5 text-yellow-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Status
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  overdue ? "text-red-600" : "text-yellow-600"
+                                }`}
+                              >
+                                {overdue ? "⚠️ Overdue" : "⏳ In Progress"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {inProgressTasks.length === 0 && (
+              <div className="text-center py-12">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 opacity-50" />
+                <p className="text-slate-500 text-lg">All tasks are completed!</p>
+                <p className="text-slate-400 text-sm">No tasks currently in progress.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Overdue Tasks View
+  if (currentView === "overdue-tasks" && selectedManager) {
+    // Get all overdue tasks for the selected manager
+    let overdueTasks = excelData
+      .filter((row) => {
+        const manager = row.Manager || row.ManagerName;
+        if (manager !== selectedManager) return false;
+
+        const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
+        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
+        const status = (row.Status || "").toLowerCase();
+
+        // Include tasks that are overdue (past deadline but not completed)
+        return status.includes("completed") || status.includes("complete") || status.includes("done")
+          ? completedDate !== "-" && deadline !== "N/A" && parseDate(completedDate) > parseDate(deadline)
+          : deadline !== "N/A" && new Date() > parseDate(deadline);
+      })
+      .map((row) => {
+        const deadline = formatExcelDate(
+          row.Deadline || row.DueDate || "N/A"
+        );
+        const completedDate = formatExcelDate(
+          row.CompletedDate || row.ActualDate || row.CompletionDate || "-"
+        );
+        const startDate = formatExcelDate(row.StartDate || "-");
+        const kpi = calculateKPI(startDate, completedDate, deadline);
+
+        return {
+          name: row.Task || row.TaskName || "Unnamed Task",
+          status: row.Status || "Pending",
+          deadline,
+          completedDate,
+          priority: row.Priority || "Medium",
+          startDate,
+          kpi,
+          memberName: row.TeamMember || row.Member || row.Name,
+          projectName: row.Project || row.ProjectName,
+        };
+      })
+      .sort((a, b) => {
+        const dateA = parseDate(a.deadline);
+        const dateB = parseDate(b.deadline);
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateA - dateB;
+      });
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header
+            title="Overdue Tasks"
+            subtitle={`${selectedManager}'s Team - Tasks That Need Immediate Attention`}
+          />
+          <Breadcrumb />
+
+          <div className="bg-white rounded-xl p-8 shadow-lg border border-slate-200 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-red-800">
+                🚨 Overdue Tasks Alert
+              </h2>
+              <div className="bg-red-50 px-6 py-3 rounded-lg">
+                <p className="text-sm text-red-700">
+                  Tasks Requiring Attention:{" "}
+                  <span className="font-bold text-red-900 text-xl">
+                    {overdueTasks.length}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-red-200"></div>
+              <div className="space-y-6">
+                {overdueTasks.map((task, idx) => {
+                  const overdue = isOverdue(task.deadline, task.completedDate);
+                  const daysOverdue = overdue ? Math.ceil((new Date() - parseDate(task.deadline)) / (1000 * 60 * 60 * 24)) : 0;
+                  const isCompleted =
+                    (task.status || "").toLowerCase().includes("complete") ||
+                    (task.status || "").toLowerCase().includes("done");
+
+                  return (
+                    <div key={idx} className="relative pl-20">
+                      <div
+                        className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
+                          isCompleted ? "bg-red-600" : "bg-red-500"
+                        }`}
+                      ></div>
+
+                      <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 hover:shadow-lg transition-all border border-red-200">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h4 className="text-lg font-bold text-slate-800 mb-2">
+                              {task.name}
+                            </h4>
+                            <div className="flex gap-2 flex-wrap mb-2">
+                              <span
+                                className={`inline-block px-3 py-1 rounded-full text-xs font-semibold text-white shadow-sm ${getStatusColor(
+                                  task.status
+                                )}`}
+                              >
+                                {task.status}
+                              </span>
+                              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-slate-700 shadow-sm">
+                                Priority: {task.priority}
+                              </span>
+                              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-red-600 shadow-sm">
+                                ⚠️ {daysOverdue} days overdue
+                              </span>
+                              {isCompleted && (
+                                <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-red-700 shadow-sm">
+                                  Completed Late
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-4 text-sm">
+                              <span className="text-slate-600">
+                                Project:{" "}
+                                <span className="font-semibold">
+                                  {task.projectName}
+                                </span>
+                              </span>
+                              <span className="text-slate-600">
+                                Assigned:{" "}
+                                <span className="font-semibold">
+                                  {task.memberName}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4 bg-white rounded-lg p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-blue-100 p-2 rounded-lg">
+                              <Clock className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Start Date
+                              </p>
+                              <p className="text-slate-800 font-bold text-sm">
+                                {task.startDate}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-orange-100 p-2 rounded-lg">
+                              <AlertCircle className="w-5 h-5 text-orange-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Deadline
+                              </p>
+                              <p className="text-red-600 font-bold text-sm">
+                                {task.deadline}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-green-100 p-2 rounded-lg">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Completed
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  task.completedDate === "-"
+                                    ? "text-slate-400"
+                                    : "text-slate-800"
+                                }`}
+                              >
+                                {task.completedDate}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="bg-purple-100 p-2 rounded-lg">
+                              <BarChart3 className="w-5 h-5 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                KPI
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  task.kpi === null
+                                    ? "text-slate-400"
+                                    : task.kpi >= 80
+                                    ? "text-green-600"
+                                    : task.kpi >= 60
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {task.kpi !== null ? `${task.kpi}%` : "N/A"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`${
+                                overdue ? "bg-red-100" : "bg-green-100"
+                              } p-2 rounded-lg`}
+                            >
+                              {overdue ? (
+                                <AlertCircle className="w-5 h-5 text-red-600" />
+                              ) : (
+                                <CheckCircle className="w-5 h-5 text-green-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                Status
+                              </p>
+                              <p
+                                className={`font-bold text-sm ${
+                                  overdue ? "text-red-600" : "text-green-600"
+                                }`}
+                              >
+                                {overdue ? `🚨 ${daysOverdue} days overdue` : "✓ On Time"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {overdueTasks.length === 0 && (
+              <div className="text-center py-12">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 opacity-50" />
+                <p className="text-slate-500 text-lg">No overdue tasks! 🎉</p>
+                <p className="text-slate-400 text-sm">All tasks are on time or completed.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Performance Details View
+  if (currentView === "performance-details" && selectedManager) {
+    // Categorize members
+    const highPerformers = teamData.filter(member => member.kpi >= 80);
+    const goodPerformers = teamData.filter(member => member.kpi >= 60 && member.kpi < 80);
+    const needsAttention = teamData.filter(member => member.kpi < 60);
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header
+            title="Performance Details"
+            subtitle={`${selectedManager}'s Team Performance Breakdown`}
+          />
+          <Breadcrumb />
+
+          {/* High Performers Section */}
+          {highPerformers.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-8">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">High Performers (≥80% KPI)</h2>
+                  <p className="text-slate-600">{highPerformers.length} team members</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {highPerformers.map((member, idx) => {
+                  // Calculate project KPIs for this member
+                  const memberProjects = {};
+                  excelData.forEach((row) => {
+                    const manager = row.Manager || row.ManagerName;
+                    const memberName = row.TeamMember || row.Member || row.Name;
+                    const project = row.Project || row.ProjectName;
+
+                    if (manager === selectedManager && memberName === member.name && project) {
+                      if (!memberProjects[project]) {
+                        memberProjects[project] = {
+                          name: project,
+                          totalTasks: 0,
+                          completedTasks: 0,
+                          kpis: [],
+                          tasks: [],
+                        };
+                      }
+                      memberProjects[project].totalTasks++;
+                      const status = (row.Status || "").toLowerCase();
+                      if (
+                        status.includes("completed") ||
+                        status.includes("complete") ||
+                        status.includes("done")
+                      ) {
+                        memberProjects[project].completedTasks++;
+                      }
+                      const kpi = calculateKPI(
+                        formatExcelDate(row.StartDate),
+                        formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-"),
+                        formatExcelDate(row.Deadline || row.DueDate)
+                      );
+                      if (kpi !== null) {
+                        memberProjects[project].kpis.push(kpi);
+                      }
+                    }
+                  });
+
+                  const projectsWithKPIs = Object.values(memberProjects).map(project => ({
+                    ...project,
+                    avgKpi: project.kpis.length > 0 ? Math.round(project.kpis.reduce((a, b) => a + b, 0) / project.kpis.length) : 0,
+                    completionPercentage: project.totalTasks > 0 ? Math.round((project.completedTasks / project.totalTasks) * 100) : 0,
+                  }));
+
+                  return (
+                    <div key={idx} className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                            <Users className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-800">{member.name}</h3>
+                            <p className="text-slate-600">{member.role}</p>
+                            <div className="flex items-center gap-4 mt-2">
+                              <span className="text-sm text-green-700 font-semibold">
+                                Overall KPI: {member.kpi}%
+                              </span>
+                              <span className="text-sm text-slate-600">
+                                Progress: {member.percentage}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {projectsWithKPIs.map((project, pidx) => (
+                          <div key={pidx} className="bg-white rounded-lg p-4 shadow-sm">
+                            <h4 className="font-semibold text-slate-800 mb-2">{project.name}</h4>
+                            <div className="space-y-1">
+                              <p className="text-sm text-slate-600">Tasks: {project.completedTasks}/{project.totalTasks}</p>
+                              <p className={`text-sm font-semibold ${
+                                project.avgKpi >= 80 ? 'text-green-600' :
+                                project.avgKpi >= 60 ? 'text-yellow-600' : 'text-red-600'
+                              }`}>
+                                Project KPI: {project.avgKpi}%
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Good Performance Section */}
+          {goodPerformers.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-8">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center">
+                  <BarChart3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">Good Performance (60-79% KPI)</h2>
+                  <p className="text-slate-600">{goodPerformers.length} team members</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {goodPerformers.map((member, idx) => {
+                  // Same logic as above for projects
+                  const memberProjects = {};
+                  excelData.forEach((row) => {
+                    const manager = row.Manager || row.ManagerName;
+                    const memberName = row.TeamMember || row.Member || row.Name;
+                    const project = row.Project || row.ProjectName;
+
+                    if (manager === selectedManager && memberName === member.name && project) {
+                      if (!memberProjects[project]) {
+                        memberProjects[project] = {
+                          name: project,
+                          totalTasks: 0,
+                          completedTasks: 0,
+                          kpis: [],
+                        };
+                      }
+                      memberProjects[project].totalTasks++;
+                      const status = (row.Status || "").toLowerCase();
+                      if (
+                        status.includes("completed") ||
+                        status.includes("complete") ||
+                        status.includes("done")
+                      ) {
+                        memberProjects[project].completedTasks++;
+                      }
+                      const kpi = calculateKPI(
+                        formatExcelDate(row.StartDate),
+                        formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-"),
+                        formatExcelDate(row.Deadline || row.DueDate)
+                      );
+                      if (kpi !== null) {
+                        memberProjects[project].kpis.push(kpi);
+                      }
+                    }
+                  });
+
+                  const projectsWithKPIs = Object.values(memberProjects).map(project => ({
+                    ...project,
+                    avgKpi: project.kpis.length > 0 ? Math.round(project.kpis.reduce((a, b) => a + b, 0) / project.kpis.length) : 0,
+                    completionPercentage: project.totalTasks > 0 ? Math.round((project.completedTasks / project.totalTasks) * 100) : 0,
+                  }));
+
+                  return (
+                    <div key={idx} className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-200">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-yellow-500 flex items-center justify-center">
+                            <Users className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-800">{member.name}</h3>
+                            <p className="text-slate-600">{member.role}</p>
+                            <div className="flex items-center gap-4 mt-2">
+                              <span className="text-sm text-yellow-700 font-semibold">
+                                Overall KPI: {member.kpi}%
+                              </span>
+                              <span className="text-sm text-slate-600">
+                                Progress: {member.percentage}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {projectsWithKPIs.map((project, pidx) => (
+                          <div key={pidx} className="bg-white rounded-lg p-4 shadow-sm">
+                            <h4 className="font-semibold text-slate-800 mb-2">{project.name}</h4>
+                            <div className="space-y-1">
+                              <p className="text-sm text-slate-600">Tasks: {project.completedTasks}/{project.totalTasks}</p>
+                              <p className={`text-sm font-semibold ${
+                                project.avgKpi >= 80 ? 'text-green-600' :
+                                project.avgKpi >= 60 ? 'text-yellow-600' : 'text-red-600'
+                              }`}>
+                                Project KPI: {project.avgKpi}%
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Needs Attention Section */}
+          {needsAttention.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-red-400 to-red-600 flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">Needs Attention (60% KPI)</h2>
+                  <p className="text-slate-600">{needsAttention.length} team members</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {needsAttention.map((member, idx) => {
+                  // Same logic as above for projects
+                  const memberProjects = {};
+                  excelData.forEach((row) => {
+                    const manager = row.Manager || row.ManagerName;
+                    const memberName = row.TeamMember || row.Member || row.Name;
+                    const project = row.Project || row.ProjectName;
+
+                    if (manager === selectedManager && memberName === member.name && project) {
+                      if (!memberProjects[project]) {
+                        memberProjects[project] = {
+                          name: project,
+                          totalTasks: 0,
+                          completedTasks: 0,
+                          kpis: [],
+                        };
+                      }
+                      memberProjects[project].totalTasks++;
+                      const status = (row.Status || "").toLowerCase();
+                      if (
+                        status.includes("completed") ||
+                        status.includes("complete") ||
+                        status.includes("done")
+                      ) {
+                        memberProjects[project].completedTasks++;
+                      }
+                      const kpi = calculateKPI(
+                        formatExcelDate(row.StartDate),
+                        formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-"),
+                        formatExcelDate(row.Deadline || row.DueDate)
+                      );
+                      if (kpi !== null) {
+                        memberProjects[project].kpis.push(kpi);
+                      }
+                    }
+                  });
+
+                  const projectsWithKPIs = Object.values(memberProjects).map(project => ({
+                    ...project,
+                    avgKpi: project.kpis.length > 0 ? Math.round(project.kpis.reduce((a, b) => a + b, 0) / project.kpis.length) : 0,
+                    completionPercentage: project.totalTasks > 0 ? Math.round((project.completedTasks / project.totalTasks) * 100) : 0,
+                  }));
+
+                  return (
+                    <div key={idx} className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 border border-red-200">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                            <Users className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-800">{member.name}</h3>
+                            <p className="text-slate-600">{member.role}</p>
+                            <div className="flex items-center gap-4 mt-2">
+                              <span className="text-sm text-red-700 font-semibold">
+                                Overall KPI: {member.kpi}%
+                              </span>
+                              <span className="text-sm text-slate-600">
+                                Progress: {member.percentage}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {projectsWithKPIs.map((project, pidx) => (
+                          <div key={pidx} className="bg-white rounded-lg p-4 shadow-sm">
+                            <h4 className="font-semibold text-slate-800 mb-2">{project.name}</h4>
+                            <div className="space-y-1">
+                              <p className="text-sm text-slate-600">Tasks: {project.completedTasks}/{project.totalTasks}</p>
+                              <p className={`text-sm font-semibold ${
+                                project.avgKpi >= 80 ? 'text-green-600' :
+                                project.avgKpi >= 60 ? 'text-yellow-600' : 'text-red-600'
+                              }`}>
+                                Project KPI: {project.avgKpi}%
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {teamData.length === 0 && (
+            <div className="text-center py-12">
+              <Users className="w-16 h-16 text-slate-400 mx-auto mb-4 opacity-50" />
+              <p className="text-slate-500 text-lg">No team members found.</p>
+            </div>
+          )}
         </div>
       </div>
     );
