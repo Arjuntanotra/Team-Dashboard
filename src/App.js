@@ -2907,7 +2907,7 @@ export default function TeamDashboard() {
         if (manager !== selectedManager) return false;
 
         const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
-        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
+        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-")<;
         const status = (row.Status || "").toLowerCase();
 
         // Include tasks that are overdue (past deadline but not completed)
