@@ -89,11 +89,25 @@ export default function TeamDashboard() {
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      console.log("Loaded JSON Data:", jsonData);
 
       if (jsonData.length === 0) {
         throw new Error(
           "Google Sheet is empty. Please add data to your sheet."
         );
+      }
+
+      // Debug: Show available columns and sample data
+      if (jsonData.length > 0) {
+        console.log("Available columns in sheet:", Object.keys(jsonData[0]));
+        console.log("Sample row data:", jsonData[0]);
+        console.log("Valuation column check:", {
+          Valuation: jsonData[0].Valuation,
+          valuation: jsonData[0].valuation,
+          VALUATION: jsonData[0].VALUATION,
+          hasValuation: 'Valuation' in jsonData[0],
+          allKeys: Object.keys(jsonData[0])
+        });
       }
 
       setExcelData(jsonData);
@@ -121,11 +135,19 @@ export default function TeamDashboard() {
 
     if (!start || !completion || !deadline) return null;
 
-    const plannedDays = Math.max(1, Math.ceil((deadline - start) / (1000 * 60 * 60 * 24)));
-    const actualDays = Math.max(1, Math.ceil((completion - start) / (1000 * 60 * 60 * 24)));
+    // Calculate delay in days from deadline
+    const delayMs = completion - deadline;
+    const delayDays = Math.ceil(delayMs / (1000 * 60 * 60 * 24));
 
-    if (actualDays <= plannedDays) return 100;
-    return Math.max(0, Math.round((plannedDays / actualDays) * 100));
+    if (delayDays <= 0) return 100; // Completed on or before deadline
+
+    // Calculate weeks of delay (1-7 days = 1 week, 8-14 days = 2 weeks, etc.)
+    const weeksDelay = Math.ceil(delayDays / 7);
+
+    // Deduct 5% per week of delay
+    const kpi = Math.max(0, 100 - (weeksDelay * 5));
+
+    return Math.round(kpi);
   };
 
   const formatExcelDate = (excelDate) => {
@@ -487,13 +509,43 @@ export default function TeamDashboard() {
   };
 
   const isOverdue = (deadline, completedDate) => {
-    if (!deadline || deadline === "N/A" || completedDate === "-") return false;
+    if (!deadline || deadline === "N/A") return false;
     try {
       const deadlineDate = parseDate(deadline);
       const completed = parseDate(completedDate);
-      return completed > deadlineDate;
+
+      // If task is completed, check if completed after deadline
+      if (completed && completedDate !== "-") {
+        return completed > deadlineDate;
+      }
+      // If task is not completed, check if current date is past deadline
+      return new Date() > deadlineDate;
     } catch {
       return false;
+    }
+  };
+
+  const getTaskStatus = (deadline, completedDate) => {
+    if (!deadline || deadline === "N/A") return { status: "ontime", weeksOverdue: 0 };
+
+    try {
+      const deadlineDate = parseDate(deadline);
+      const completed = parseDate(completedDate);
+
+      // If task is completed
+      if (completed && completedDate !== "-") {
+        if (completed > deadlineDate) {
+          const daysOverdue = Math.max(1, Math.ceil((completed - deadlineDate) / (1000 * 60 * 60 * 24)));
+          const weeksOverdue = Math.max(1, Math.ceil(daysOverdue / 7));
+          return { status: "overdue", weeksOverdue };
+        }
+        return { status: "ontime", weeksOverdue: 0 };
+      }
+
+      // If task is not completed (no completed date), consider it on time
+      return { status: "ontime", weeksOverdue: 0 };
+    } catch {
+      return { status: "ontime", weeksOverdue: 0 };
     }
   };
 
@@ -655,11 +707,13 @@ export default function TeamDashboard() {
     return (
       <div className="mb-6 bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-1">
-              {title}
-            </h1>
-            {subtitle && <p className="text-slate-600">{subtitle}</p>}
+          <div className="flex items-center">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-1">
+                {title}
+              </h1>
+              {subtitle && <p className="text-slate-600">{subtitle}</p>}
+            </div>
           </div>
           <div className="text-right">
             <button
@@ -755,6 +809,9 @@ export default function TeamDashboard() {
                 <li>
                   <strong>StartDate</strong>: Task start date (optional)
                 </li>
+                <li>
+                  <strong>Valuation</strong>: Project valuation in rupees
+                </li>
               </ul>
             </div>
             <button
@@ -783,74 +840,205 @@ export default function TeamDashboard() {
           />
           <Breadcrumb />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {managers.map((manager, idx) => (
-              <div
-                key={idx}
-                onClick={() => navigateToManager(manager.name)}
-                className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 hover:shadow-2xl transition-all border border-blue-400"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
-                    <Users className="w-10 h-10 text-white" />
-                  </div>
-                  <span className="text-blue-50 text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
-                    {manager.role}
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-4">
-                  {manager.name}
-                </h3>
+          <div className="space-y-6">
+            {managers.map((manager, idx) => {
+              // Prepare data for the bar chart
+              const chartData = [
+                { name: 'Team Members', value: manager.teamCount, color: '#60a5fa' },
+                { name: 'Projects', value: manager.projectCount, color: '#f59e0b' },
+                { name: 'Total Tasks', value: manager.totalTasks, color: '#10b981' },
+                { name: 'Team KPI', value: manager.averageKpi, color: '#8b5cf6' },
+              ];
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-blue-50">
-                    <span className="flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      Team Members
-                    </span>
-                    <span className="font-bold">{manager.teamCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-blue-50">
-                    <span className="flex items-center gap-2">
-                      <FolderOpen className="w-4 h-4" />
-                      Projects
-                    </span>
-                    <span className="font-bold">{manager.projectCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-blue-50">
-                    <span className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Total Tasks
-                    </span>
-                    <span className="font-bold">{manager.totalTasks}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-blue-50">
-                    <span className="flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4" />
-                      Team KPI
-                    </span>
-                    <span className="font-bold">{manager.averageKpi}%</span>
-                  </div>
-                </div>
+              return (
+                <div key={idx} className="bg-white rounded-xl p-6 shadow-lg border border-slate-200">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Manager Card - Left Side */}
+                    <div
+                      onClick={() => navigateToManager(manager.name)}
+                      className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg cursor-pointer hover:scale-105 hover:shadow-2xl transition-all border border-blue-400"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                          <Users className="w-10 h-10 text-white" />
+                        </div>
+                        <span className="text-blue-50 text-sm font-medium bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full">
+                          {manager.role}
+                        </span>
+                      </div>
+                      <h3 className="text-2xl font-bold text-white mb-4">
+                        {manager.name}
+                      </h3>
 
-                <div className="mt-4 pt-4 border-t border-white/20">
-                  <div className="flex items-center justify-between text-white mb-2">
-                    <span className="text-sm">Progress & Avg KPI</span>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="bg-white/20 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="bg-white h-2 rounded-full transition-all"
-                        style={{ width: `${manager.percentage}%` }}
-                      />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-blue-50">
+                          <span className="flex items-center gap-2">
+                            <Users className="w-4 h-4" />
+                            Team Members
+                          </span>
+                          <span className="font-bold">{manager.teamCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-blue-50">
+                          <span className="flex items-center gap-2">
+                            <FolderOpen className="w-4 h-4" />
+                            Projects
+                          </span>
+                          <span className="font-bold">{manager.projectCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-blue-50">
+                          <span className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Total Tasks
+                          </span>
+                          <span className="font-bold">{manager.totalTasks}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-blue-50">
+                          <span className="flex items-center gap-2">
+                            <BarChart3 className="w-4 h-4" />
+                            Team KPI
+                          </span>
+                          <span className="font-bold">{manager.averageKpi}%</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-white/20">
+                        <div className="flex items-center justify-between text-white mb-2">
+                          <span className="text-sm">Progress & Avg KPI</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="bg-white/20 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-white h-2 rounded-full transition-all"
+                              style={{ width: `${manager.percentage}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-white/80 text-center">
+                            Progress: {manager.percentage}% | KPI: {manager.averageKpi}%
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-white/80 text-center">
-                      Progress: {manager.percentage}% | KPI: {manager.averageKpi}%
-                    </p>
+
+                    {/* Bar Chart - Right Side */}
+                    <div className="flex flex-col justify-center">
+                      <h4 className="text-lg font-semibold text-slate-800 mb-4 text-center">
+                        Team Summary
+                      </h4>
+                      <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                            <XAxis
+                              dataKey="name"
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{ fontSize: 12, fill: '#374151' }}
+                              interval={0}
+                            />
+                            <YAxis
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{ fontSize: 12, fill: '#374151' }}
+                            />
+                            <Tooltip
+                              content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  const value = payload[0].value;
+                                  return (
+                                    <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
+                                      <p className="font-bold text-slate-800 mb-2">
+                                        {manager.name} - {label}
+                                      </p>
+                                      <div className="space-y-1 text-sm">
+                                        {label === 'Team Members' && (
+                                          <>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Role:</span> {manager.role}
+                                            </p>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Team Size:</span> {manager.teamCount} members
+                                            </p>
+                                          </>
+                                        )}
+                                        {label === 'Projects' && (
+                                          <>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Active Projects:</span> {manager.projectCount}
+                                            </p>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Overall Progress:</span> {manager.percentage}%
+                                            </p>
+                                          </>
+                                        )}
+                                        {label === 'Total Tasks' && (
+                                          <>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Completed:</span> {manager.completedTasks}
+                                            </p>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">In Progress:</span> {manager.inProgressTasks}
+                                            </p>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Total:</span> {manager.totalTasks}
+                                            </p>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Completion Rate:</span> {manager.totalTasks > 0 ? Math.round((manager.completedTasks / manager.totalTasks) * 100) : 0}%
+                                            </p>
+                                          </>
+                                        )}
+                                        {label === 'Team KPI' && (
+                                          <>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Average Performance:</span> {manager.averageKpi}%
+                                            </p>
+                                            <p className="text-slate-600">
+                                              <span className="font-semibold">Rating:</span> {
+                                                manager.averageKpi >= 90 ? 'Excellent' :
+                                                manager.averageKpi >= 80 ? 'Very Good' :
+                                                manager.averageKpi >= 70 ? 'Good' :
+                                                manager.averageKpi >= 60 ? 'Fair' : 'Needs Improvement'
+                                              }
+                                            </p>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex justify-center gap-3 mt-4 text-sm text-slate-600 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#60a5fa' }}></div>
+                          <span>Members: {manager.teamCount}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#f59e0b' }}></div>
+                          <span>Projects: {manager.projectCount}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#10b981' }}></div>
+                          <span>Tasks: {manager.totalTasks}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8b5cf6' }}></div>
+                          <span>KPI: {manager.averageKpi}%</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1004,94 +1192,242 @@ export default function TeamDashboard() {
             </div>
           </div>
 
-          {/* Pie Chart */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">
-              Team Task Distribution
-            </h2>
-            <div className="flex flex-col lg:flex-row items-center gap-8">
-              <div className="w-full lg:w-1/2 h-96">
-                {teamData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={teamData}
-                        dataKey="totalTasks"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={120}
-                        label={({ name, totalTasks, percentage }) =>
-                          `${name}: ${totalTasks} (${percentage}%)`
-                        }
-                        onClick={(data) => {
-                          setSelectedMember(data.name);
-                          setCurrentView("member");
-                        }}
-                        style={{ cursor: "pointer" }}
-                      >
-                        {teamData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
-                                <p className="font-bold text-slate-800">
-                                  {data.name}
-                                </p>
-                                <p className="text-slate-600">
-                                  Total Tasks:{" "}
-                                  <span className="font-semibold">
-                                    {data.totalTasks}
-                                  </span>
-                                </p>
-                                <p className="text-slate-600">
-                                  Completed:{" "}
-                                  <span className="font-semibold">
-                                    {data.completedTasks}
-                                  </span>
-                                </p>
-                                <p className="text-slate-600">
-                                  Progress:{" "}
-                                  <span className="font-semibold">
-                                    {data.percentage}%
-                                  </span>
-                                </p>
-                                <p className="text-slate-600">
-                                  Projects:{" "}
-                                  <span className="font-semibold">
-                                    {data.projectCount}
-                                  </span>
-                                </p>
-                                <p className="text-blue-600 text-sm mt-2 font-medium">
-                                  Click to view details →
-                                </p>
-                              </div>
-                            );
+          {/* Pie Charts */}
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Task Distribution Pie Chart */}
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">
+                  Team Task & Volume Distribution
+                </h2>
+                <div className="h-80">
+                  {teamData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={teamData}
+                          dataKey="totalTasks"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          innerRadius={30}
+                          label={({ name, value, percent }) =>
+                            `${name}: ${value} tasks (${(percent * 100).toFixed(1)}%)`
                           }
-                          return null;
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-slate-500">No team data available</p>
-                  </div>
-                )}
+                          labelLine={false}
+                          labelStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                          onClick={(data) => {
+                            setSelectedMember(data.name);
+                            setCurrentView("member");
+                          }}
+                          style={{ cursor: "pointer" }}
+                        >
+                          {teamData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              const taskVolumePercentage = ((data.totalTasks / teamData.reduce((sum, member) => sum + member.totalTasks, 0)) * 100).toFixed(1);
+                              return (
+                                <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
+                                  <p className="font-bold text-slate-800">
+                                    {data.name}
+                                  </p>
+                                  <p className="text-slate-600">
+                                    Total Tasks:{" "}
+                                    <span className="font-semibold">
+                                      {data.totalTasks}
+                                    </span>
+                                  </p>
+                                  <p className="text-slate-600">
+                                    Task Volume:{" "}
+                                    <span className="font-semibold text-purple-600">
+                                      {taskVolumePercentage}%
+                                    </span>
+                                  </p>
+                                  <p className="text-slate-600">
+                                    Completed:{" "}
+                                    <span className="font-semibold">
+                                      {data.completedTasks}
+                                    </span>
+                                  </p>
+                                  <p className="text-slate-600">
+                                    Progress:{" "}
+                                    <span className="font-semibold">
+                                      {data.percentage}%
+                                    </span>
+                                  </p>
+                                  <p className="text-slate-600">
+                                    Projects:{" "}
+                                    <span className="font-semibold">
+                                      {data.projectCount}
+                                    </span>
+                                  </p>
+                                  <p className="text-blue-600 text-sm mt-2 font-medium">
+                                    Click to view details →
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-slate-500">No team data available</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="w-full lg:w-1/2 space-y-4">
-                <h3 className="text-lg font-semibold text-slate-700 mb-4">
-                  Team Members
-                </h3>
+              {/* Valuation Distribution Pie Chart */}
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-6">
+                  Team Valuation Distribution
+                </h2>
+                <div className="h-80">
+                  {(() => {
+                    // Calculate valuation per team member
+                    const valuationData = teamData.map(member => {
+                      let totalValuation = 0;
+                      let valuationCount = 0;
+                      excelData.forEach((row) => {
+                        const manager = row.Manager || row.ManagerName;
+                        const memberName = row.TeamMember || row.Member || row.Name;
+
+                        if (manager === selectedManager && memberName === member.name) {
+                          // Try different possible column names for valuation
+                          const valuationValue = row.Valuation || row.valuation || row.VALUATION || row['valuation'] || row['VALUATION'] || 0;
+
+                          // Parse valuation - handle various formats
+                          let parsedValuation = 0;
+                          if (valuationValue && valuationValue !== 'N/A' && valuationValue !== '-') {
+                            // Remove currency symbols and commas
+                            const cleanValue = String(valuationValue).replace(/[₹,\s]/g, '');
+                            parsedValuation = parseFloat(cleanValue) || 0;
+                          }
+
+                          if (parsedValuation > 0) {
+                            totalValuation += parsedValuation;
+                            valuationCount++;
+                          }
+                        }
+                      });
+
+                      console.log(`Member ${member.name}: totalValuation=${totalValuation}, valuationCount=${valuationCount}, rawValuations=`, member.rawValuations);
+
+                      return {
+                        ...member,
+                        totalValuation: Math.round(totalValuation),
+                        valuationCount,
+                        rawValuations: member.rawValuations || []
+                      };
+                    }).filter(member => member.totalValuation > 0);
+
+                    console.log('Valuation data:', valuationData);
+                    console.log('Total team valuation:', valuationData.reduce((sum, member) => sum + member.totalValuation, 0));
+
+                    return valuationData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={valuationData}
+                            dataKey="totalValuation"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={80}
+                            innerRadius={30}
+                            label={({ name, value, percent }) =>
+                              `${name}: ₹${value.toLocaleString()} (${(percent * 100).toFixed(1)}%)`
+                            }
+                            labelLine={false}
+                            labelStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                            onClick={(data) => {
+                              setSelectedMember(data.name);
+                              setCurrentView("member");
+                            }}
+                            style={{ cursor: "pointer" }}
+                          >
+                            {valuationData.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={COLORS[index % COLORS.length]}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                const totalTeamValuation = valuationData.reduce((sum, member) => sum + member.totalValuation, 0);
+                                const valuationPercentage = ((data.totalValuation / totalTeamValuation) * 100).toFixed(1);
+                                return (
+                                  <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
+                                    <p className="font-bold text-slate-800">
+                                      {data.name}
+                                    </p>
+                                    <p className="text-slate-600">
+                                      Total Valuation:{" "}
+                                      <span className="font-semibold text-green-600">
+                                        ₹{data.totalValuation.toLocaleString()}
+                                      </span>
+                                    </p>
+                                    <p className="text-slate-600">
+                                      Valuation Share:{" "}
+                                      <span className="font-semibold text-purple-600">
+                                        {valuationPercentage}%
+                                      </span>
+                                    </p>
+                                    <p className="text-slate-600">
+                                      Projects:{" "}
+                                      <span className="font-semibold">
+                                        {data.projectCount}
+                                      </span>
+                                    </p>
+                                    <p className="text-slate-600">
+                                      KPI:{" "}
+                                      <span className="font-semibold">
+                                        {data.kpi}%
+                                      </span>
+                                    </p>
+                                    <p className="text-blue-600 text-sm mt-2 font-medium">
+                                      Click to view details →
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-slate-500">No valuation data available</p>
+                        <p className="text-slate-400 text-sm mt-2">Add Valuation column to your sheet</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Team Members Horizontal Layout */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-slate-700 mb-4">
+                Team Members
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {teamData.map((member, idx) => (
                   <div
                     key={idx}
@@ -1101,39 +1437,65 @@ export default function TeamDashboard() {
                     }}
                     className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer border border-slate-200 hover:border-blue-300"
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-4 h-4 rounded-full"
-                          style={{
-                            backgroundColor: COLORS[idx % COLORS.length],
-                          }}
-                        />
-                        <div>
-                          <h4 className="font-bold text-slate-800">
-                            {member.name}
-                          </h4>
-                          <p className="text-xs text-slate-500">
-                            {member.role}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-sm font-semibold text-blue-600">
-                        {member.percentage}% Complete
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
-                      <span>
-                        {member.completedTasks} / {member.totalTasks} Tasks
-                      </span>
-                      <span>{member.projectCount} Projects</span>
-                    </div>
-                    <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
                       <div
-                        className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all"
-                        style={{ width: `${member.percentage}%` }}
+                        className="w-4 h-4 rounded-full"
+                        style={{
+                          backgroundColor: COLORS[idx % COLORS.length],
+                        }}
                       />
+                      <div>
+                        <h4 className="font-bold text-slate-800">
+                          {member.name}
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          {member.role}
+                        </p>
+                      </div>
                     </div>
+                    <span className="text-sm font-semibold text-blue-600">
+                      {member.percentage}% Complete
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
+                    <span>
+                      {member.completedTasks} / {member.totalTasks} Tasks
+                    </span>
+                    <span>{member.projectCount} Projects</span>
+                  </div>
+                  <div className="bg-slate-200 rounded-full h-2 overflow-hidden mb-3">
+                    <div
+                      className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all"
+                      style={{ width: `${member.percentage}%` }}
+                    />
+                  </div>
+                  {(() => {
+                    // Calculate member valuation
+                    let totalValuation = 0;
+                    excelData.forEach((row) => {
+                      const manager = row.Manager || row.ManagerName;
+                      const memberName = row.TeamMember || row.Member || row.Name;
+
+                      if (manager === selectedManager && memberName === member.name) {
+                        const valuationValue = row.Valuation || row.valuation || row.VALUATION || row['valuation'] || row['VALUATION'] || 0;
+                        let parsedValuation = 0;
+                        if (valuationValue && valuationValue !== 'N/A' && valuationValue !== '-') {
+                          const cleanValue = String(valuationValue).replace(/[₹,\s]/g, '');
+                          parsedValuation = parseFloat(cleanValue) || 0;
+                        }
+                        totalValuation += parsedValuation;
+                      }
+                    });
+
+                    return totalValuation > 0 ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                        <p className="text-green-800 text-xs font-semibold">
+                          Valuation: ₹{Math.round(totalValuation).toLocaleString()}
+                        </p>
+                      </div>
+                    ) : null;
+                  })()}
                   </div>
                 ))}
               </div>
@@ -1216,7 +1578,7 @@ export default function TeamDashboard() {
           <Breadcrumb />
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
             <div className="bg-blue-50 rounded-lg p-5 shadow-md border border-blue-100">
               <p className="text-blue-600 text-sm font-medium mb-1">
                 Total Tasks
@@ -1255,6 +1617,32 @@ export default function TeamDashboard() {
               </p>
               <p className="text-3xl font-bold text-indigo-700">
                 {overallKpi}%
+              </p>
+            </div>
+            <div className="bg-emerald-50 rounded-lg p-5 shadow-md border border-emerald-100">
+              <p className="text-emerald-600 text-sm font-medium mb-1">
+                Total Valuation
+              </p>
+              <p className="text-3xl font-bold text-emerald-700">
+                {(() => {
+                  let totalValuation = 0;
+                  excelData.forEach((row) => {
+                    const manager = row.Manager || row.ManagerName;
+                    const memberName = row.TeamMember || row.Member || row.Name;
+
+                    if (manager === selectedManager && memberName === selectedMember) {
+                      const valuationValue = row.Valuation || row.valuation || row.VALUATION || row['valuation'] || row['VALUATION'] || 0;
+                      let parsedValuation = 0;
+                      if (valuationValue && valuationValue !== 'N/A' && valuationValue !== '-') {
+                        const cleanValue = String(valuationValue).replace(/[₹,\s]/g, '');
+                        parsedValuation = parseFloat(cleanValue) || 0;
+                      }
+                      totalValuation += parsedValuation;
+                    }
+                  });
+
+                  return totalValuation > 0 ? `₹${Math.round(totalValuation).toLocaleString()}` : '₹0';
+                })()}
               </p>
             </div>
           </div>
@@ -1444,6 +1832,33 @@ export default function TeamDashboard() {
                           </p>
                         </div>
                       )}
+                      {(() => {
+                        // Calculate project valuation
+                        let totalValuation = 0;
+                        excelData.forEach((row) => {
+                          const manager = row.Manager || row.ManagerName;
+                          const memberName = row.TeamMember || row.Member || row.Name;
+                          const projectName = row.Project || row.ProjectName;
+
+                          if (manager === selectedManager && memberName === selectedMember && projectName === project) {
+                            const valuationValue = row.Valuation || row.valuation || row.VALUATION || row['valuation'] || row['VALUATION'] || 0;
+                            let parsedValuation = 0;
+                            if (valuationValue && valuationValue !== 'N/A' && valuationValue !== '-') {
+                              const cleanValue = String(valuationValue).replace(/[₹,\s]/g, '');
+                              parsedValuation = parseFloat(cleanValue) || 0;
+                            }
+                            totalValuation += parsedValuation;
+                          }
+                        });
+
+                        return totalValuation > 0 ? (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-2 mt-2">
+                            <p className="text-green-800 text-xs font-semibold">
+                              Project Valuation: ₹{Math.round(totalValuation).toLocaleString()}
+                            </p>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 );
@@ -1459,6 +1874,62 @@ export default function TeamDashboard() {
   if (currentView === "tasks" && selectedProject && selectedMember) {
     const tasks = getProjectTasks(selectedMember, selectedProject);
 
+    // Create Gantt chart data for this project
+    const ganttData = tasks.map((task, idx) => {
+      const startDate = parseDate(task.startDate);
+      const deadline = parseDate(task.deadline);
+      const completedDate = task.completedDate !== "-" ? parseDate(task.completedDate) : null;
+
+      if (!startDate || !deadline) return null;
+
+      const actualEnd = completedDate || deadline;
+      const isCompleted = (task.status || "").toLowerCase().includes("complete") ||
+                         (task.status || "").toLowerCase().includes("done");
+
+      return {
+        task: task.name,
+        start: startDate.getTime(),
+        end: actualEnd.getTime(),
+        startDate,
+        endDate: actualEnd,
+        duration: Math.ceil((actualEnd - startDate) / (1000 * 60 * 60 * 24)),
+        status: task.status,
+        isCompleted,
+        priority: task.priority,
+        kpi: task.kpi,
+      };
+    }).filter(item => item !== null);
+
+    // Find global min and max dates for timeline scale
+    let globalMinDate = Infinity;
+    let globalMaxDate = -Infinity;
+
+    ganttData.forEach((task) => {
+      globalMinDate = Math.min(globalMinDate, task.start);
+      globalMaxDate = Math.max(globalMaxDate, task.end);
+    });
+
+    // Generate week labels for X-axis
+    const generateWeekLabels = () => {
+      if (globalMinDate === Infinity || globalMaxDate === -Infinity) return [];
+
+      const labels = [];
+      const currentDate = new Date(globalMinDate);
+
+      while (currentDate <= new Date(globalMaxDate)) {
+        const weekNum = Math.ceil(currentDate.getDate() / 7);
+        const monthName = currentDate.toLocaleDateString("en-US", {
+          month: "short",
+        });
+        labels.push(`${monthName} Wk-${weekNum}`);
+        currentDate.setDate(currentDate.getDate() + 7);
+      }
+
+      return labels;
+    };
+
+    const weekLabels = generateWeekLabels();
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
         <div className="max-w-7xl mx-auto">
@@ -1468,10 +1939,123 @@ export default function TeamDashboard() {
           />
           <Breadcrumb />
 
+          {/* Gantt Chart Section */}
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-6">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">
+              Project Gantt Chart Timeline
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Visual timeline showing task stages and completion status
+            </p>
+
+            {ganttData.length > 0 ? (
+              <div className="overflow-x-auto">
+                <div className="min-w-[800px]">
+                  {/* Timeline Header with Week Labels */}
+                  <div className="flex mb-6 pb-4 border-b-2 border-slate-300">
+                    <div className="w-48 flex-shrink-0 font-semibold text-slate-700">
+                      Tasks
+                    </div>
+                    <div className="flex-1 flex justify-between text-xs text-slate-600">
+                      {weekLabels.map((label, idx) => (
+                        <div
+                          key={idx}
+                          className="flex-1 text-center border-l border-slate-200 px-1"
+                        >
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Task Timeline Bars */}
+                  <div className="space-y-4">
+                    {ganttData.map((task, idx) => {
+                      const totalDuration = globalMaxDate - globalMinDate;
+                      const taskStartOffset = totalDuration > 0 ?
+                        ((task.start - globalMinDate) / totalDuration) * 100 : 0;
+                      const taskWidth = totalDuration > 0 ?
+                        ((task.end - task.start) / totalDuration) * 100 : 0;
+
+                      return (
+                        <div key={idx} className="flex items-center group">
+                          <div className="w-48 flex-shrink-0 pr-4">
+                            <div className="font-semibold text-slate-800 text-sm truncate">
+                              {task.task}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {task.duration} days
+                            </div>
+                          </div>
+
+                          <div className="flex-1 relative h-12">
+                            {/* Grid lines */}
+                            <div className="absolute inset-0 flex">
+                              {weekLabels.map((_, wIdx) => (
+                                <div
+                                  key={wIdx}
+                                  className="flex-1 border-l border-slate-100"
+                                ></div>
+                              ))}
+                            </div>
+
+                            {/* Task Bar */}
+                            <div
+                              className="absolute top-1 h-10 rounded-lg cursor-pointer transition-all hover:shadow-lg hover:scale-105"
+                              style={{
+                                left: `${taskStartOffset}%`,
+                                width: `${Math.max(taskWidth, 2)}%`,
+                                backgroundColor: task.isCompleted ? '#10b981' : '#3b82f6',
+                              }}
+                            >
+                              <div className="h-full flex items-center justify-center px-2">
+                                <span className="text-white text-xs font-semibold truncate">
+                                  {(() => {
+                                    const taskStatus = getTaskStatus(task.deadline, task.completedDate);
+                                    const startDateStr = task.startDate.toLocaleDateString("en-GB", {
+                                      day: "2-digit", month: "short"
+                                    });
+                                    const endDateStr = task.endDate.toLocaleDateString("en-GB", {
+                                      day: "2-digit", month: "short"
+                                    });
+
+                                    if (taskStatus.status === "overdue") {
+                                      return `${startDateStr} - ${endDateStr} (${taskStatus.weeksOverdue}w overdue)`;
+                                    } else {
+                                      return `${startDateStr} - ${endDateStr}`;
+                                    }
+                                  })()}
+                                </span>
+                              </div>
+
+                              {/* Tooltip on hover */}
+                              <div className="hidden group-hover:block absolute -top-16 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap z-10 shadow-xl">
+                                <div className="font-semibold">{task.task}</div>
+                                <div>Status: {task.status}</div>
+                                {task.kpi && <div>KPI: {task.kpi}%</div>}
+                                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-slate-800"></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-slate-500">
+                <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p>No timeline data available. Please ensure tasks have Start Date and Deadline.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Detailed Tasks Section */}
           <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-slate-800">
-                Project Tasks Timeline
+                Detailed Task Information
               </h2>
               <div className="bg-blue-50 px-6 py-3 rounded-lg">
                 <p className="text-sm text-slate-600">
@@ -1737,6 +2321,32 @@ export default function TeamDashboard() {
                       />
                     </div>
                   </div>
+                  {(() => {
+                    // Calculate member valuation
+                    let totalValuation = 0;
+                    excelData.forEach((row) => {
+                      const manager = row.Manager || row.ManagerName;
+                      const memberName = row.TeamMember || row.Member || row.Name;
+
+                      if (manager === selectedManager && memberName === member.name) {
+                        const valuationValue = row.Valuation || row.valuation || row.VALUATION || row['valuation'] || row['VALUATION'] || 0;
+                        let parsedValuation = 0;
+                        if (valuationValue && valuationValue !== 'N/A' && valuationValue !== '-') {
+                          const cleanValue = String(valuationValue).replace(/[₹,\s]/g, '');
+                          parsedValuation = parseFloat(cleanValue) || 0;
+                        }
+                        totalValuation += parsedValuation;
+                      }
+                    });
+
+                    return totalValuation > 0 ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                        <p className="text-green-800 text-xs font-semibold">
+                          Valuation: ₹{Math.round(totalValuation).toLocaleString()}
+                        </p>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
               );
             })}
@@ -1882,6 +2492,33 @@ export default function TeamDashboard() {
                       %
                     </span>
                   </div>
+                  {(() => {
+                    // Calculate project valuation
+                    let totalValuation = 0;
+                    excelData.forEach((row) => {
+                      const manager = row.Manager || row.ManagerName;
+                      const projectName = row.Project || row.ProjectName;
+
+                      if (manager === selectedManager && projectName === project.name) {
+                        const valuationValue = row.Valuation || row.valuation || row.VALUATION || row['valuation'] || row['VALUATION'] || 0;
+                        let parsedValuation = 0;
+                        if (valuationValue && valuationValue !== 'N/A' && valuationValue !== '-') {
+                          const cleanValue = String(valuationValue).replace(/[₹,\s]/g, '');
+                          parsedValuation = parseFloat(cleanValue) || 0;
+                        }
+                        totalValuation += parsedValuation;
+                      }
+                    });
+
+                    return totalValuation > 0 ? (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Project Valuation</span>
+                        <span className="font-bold text-green-600">
+                          ₹{Math.round(totalValuation).toLocaleString()}
+                        </span>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
                 <div className="mb-4">
@@ -2907,7 +3544,7 @@ export default function TeamDashboard() {
         if (manager !== selectedManager) return false;
 
         const deadline = formatExcelDate(row.Deadline || row.DueDate || "N/A");
-        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-")<;
+        const completedDate = formatExcelDate(row.CompletedDate || row.ActualDate || row.CompletionDate || "-");
         const status = (row.Status || "").toLowerCase();
 
         // Include tasks that are overdue (past deadline but not completed)
@@ -3005,7 +3642,7 @@ export default function TeamDashboard() {
                                 Priority: {task.priority}
                               </span>
                               <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-red-600 shadow-sm">
-                                ⚠️ {daysOverdue} days overdue
+                                ⚠️ {Math.max(1, Math.ceil(daysOverdue / 7))} weeks overdue
                               </span>
                               {isCompleted && (
                                 <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white bg-red-700 shadow-sm">
@@ -3124,7 +3761,7 @@ export default function TeamDashboard() {
                                   overdue ? "text-red-600" : "text-green-600"
                                 }`}
                               >
-                                {overdue ? `🚨 ${daysOverdue} days overdue` : "✓ On Time"}
+                                {overdue ? `🚨 ${Math.max(1, Math.ceil(daysOverdue / 7))} weeks overdue` : "✓ On Time"}
                               </p>
                             </div>
                           </div>
