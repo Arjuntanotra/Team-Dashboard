@@ -610,6 +610,7 @@ export default function TeamDashboard() {
           currentView !== "all-members" &&
           currentView !== "all-projects" &&
           currentView !== "all-completions" &&
+          currentView !== "in-progress-tasks" &&
           !(currentView === "all-tasks" && !selectedProject) && (
             <>
               <ChevronRight className="w-4 h-4" />
@@ -630,7 +631,6 @@ export default function TeamDashboard() {
           (currentView === "all-members" ||
             currentView === "all-projects" ||
             currentView === "all-completions" ||
-            currentView === "in-progress-tasks" ||
             currentView === "overdue-tasks" ||
             (currentView === "all-tasks" && !selectedProject)) && (
             <>
@@ -649,8 +649,6 @@ export default function TeamDashboard() {
                   ? "All Projects"
                   : currentView === "all-completions"
                   ? "All Completions"
-                  : currentView === "in-progress-tasks"
-                  ? "In Progress Tasks"
                   : currentView === "overdue-tasks"
                   ? "Overdue Tasks"
                   : currentView === "all-tasks"
@@ -659,6 +657,20 @@ export default function TeamDashboard() {
               </span>
             </>
           )}
+
+        {selectedManager && currentView === "in-progress-tasks" && (
+          <>
+            <ChevronRight className="w-4 h-4" />
+            <span
+              onClick={() => navigateToManager(selectedManager)}
+              className="cursor-pointer hover:text-blue-600 hover:underline text-slate-900 font-semibold transition-colors"
+            >
+              {selectedManager}
+            </span>
+            <ChevronRight className="w-4 h-4" />
+            <span className="text-slate-900 font-semibold">In Progress Tasks</span>
+          </>
+        )}
 
         {selectedMember &&
           currentView !== "all-members" &&
@@ -1076,10 +1088,11 @@ export default function TeamDashboard() {
               <p className="text-blue-100 text-sm mb-1">In Progress Tasks</p>
               <p className="text-3xl font-bold">{managerInfo?.inProgressTasks || 0}</p>
             </div>
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 shadow-lg text-white">
+            <div onClick={() => setCurrentView("team-kpi-breakdown")} className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all">
               <BarChart3 className="w-10 h-10 mb-3 opacity-80" />
               <p className="text-indigo-100 text-sm mb-1">Team Average KPI</p>
               <p className="text-3xl font-bold">{managerInfo?.averageKpi || 0}%</p>
+              <p className="text-indigo-200 text-xs mt-2">Click to view breakdown →</p>
             </div>
             <div
               onClick={navigateToAllMembers}
@@ -1886,18 +1899,21 @@ export default function TeamDashboard() {
       const isCompleted = (task.status || "").toLowerCase().includes("complete") ||
                          (task.status || "").toLowerCase().includes("done");
 
-      return {
-        task: task.name,
-        start: startDate.getTime(),
-        end: actualEnd.getTime(),
-        startDate,
-        endDate: actualEnd,
-        duration: Math.ceil((actualEnd - startDate) / (1000 * 60 * 60 * 24)),
-        status: task.status,
-        isCompleted,
-        priority: task.priority,
-        kpi: task.kpi,
-      };
+  return {
+    task: task.name,
+    start: startDate.getTime(),
+    end: actualEnd.getTime(),
+    startDate,
+    endDate: actualEnd,
+    duration: Math.ceil((actualEnd - startDate) / (1000 * 60 * 60 * 24)),
+    status: task.status,
+    isCompleted,
+    priority: task.priority,
+    kpi: task.kpi,
+    formattedStartDate: task.startDate,
+    formattedDeadline: task.deadline,
+    formattedCompletedDate: task.completedDate,
+  };
     }).filter(item => item !== null);
 
     // Find global min and max dates for timeline scale
@@ -2033,6 +2049,9 @@ export default function TeamDashboard() {
                                 <div className="font-semibold">{task.task}</div>
                                 <div>Status: {task.status}</div>
                                 {task.kpi && <div>KPI: {task.kpi}%</div>}
+                                <div>Start: {task.formattedStartDate}</div>
+                                <div>Deadline: {task.formattedDeadline}</div>
+                                <div>Completed: {task.formattedCompletedDate}</div>
                                 <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-slate-800"></div>
                               </div>
                             </div>
@@ -3340,7 +3359,7 @@ export default function TeamDashboard() {
         <div className="max-w-7xl mx-auto">
           <Header
             title="In Progress Tasks"
-            subtitle={`${selectedManager}'s Team - Tasks Not Yet Completed`}
+            subtitle="Tasks Not Yet Completed"
           />
           <Breadcrumb />
 
@@ -3786,12 +3805,223 @@ export default function TeamDashboard() {
     );
   }
 
+  // Team KPI Breakdown View
+  if (currentView === "team-kpi-breakdown" && selectedManager) {
+    const managerInfo = managers.find((m) => m.name === selectedManager);
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header
+            title="Team KPI Breakdown"
+            subtitle={`${selectedManager}'s Individual Team Member KPIs`}
+          />
+          <Breadcrumb />
+
+          {/* Summary Card */}
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">Team Average KPI: {managerInfo?.averageKpi}%</h2>
+                <p className="text-slate-600">Calculated from {teamData.length} team members</p>
+              </div>
+              <div className="bg-indigo-50 px-6 py-3 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  Team Members:{" "}
+                  <span className="font-bold text-indigo-600 text-xl">
+                    {teamData.length}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* KPI Distribution Chart */}
+            <div className="h-80 mb-8">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={teamData.sort((a, b) => b.kpi - a.kpi)}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                >
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#374151' }}
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#374151' }}
+                    label={{ value: 'KPI (%)', angle: -90, position: 'insideLeft' }}
+                    domain={[0, 100]}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
+                            <p className="font-bold text-slate-800 mb-2">
+                              {data.name}
+                            </p>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">KPI:</span> {data.kpi}%
+                            </p>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">Role:</span> {data.role}
+                            </p>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">Tasks:</span> {data.completedTasks}/{data.totalTasks}
+                            </p>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">Progress:</span> {data.percentage}%
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="kpi" radius={[4, 4, 0, 0]}>
+                    {teamData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          entry.kpi >= 80 ? '#10b981' :
+                          entry.kpi >= 60 ? '#f59e0b' : '#ef4444'
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Team Members KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {teamData
+                .sort((a, b) => b.kpi - a.kpi)
+                .map((member, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      setSelectedMember(member.name);
+                      setCurrentView("member");
+                    }}
+                    className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg p-5 hover:shadow-lg transition-all cursor-pointer border border-slate-200 hover:border-blue-300"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center"
+                          style={{
+                            backgroundColor:
+                              member.kpi >= 80 ? '#10b981' :
+                              member.kpi >= 60 ? '#f59e0b' : '#ef4444'
+                          }}
+                        >
+                          <Users className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-800">{member.name}</h4>
+                          <p className="text-xs text-slate-500">{member.role}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-2xl font-bold ${
+                          member.kpi >= 80 ? 'text-green-600' :
+                          member.kpi >= 60 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {member.kpi}%
+                        </p>
+                        <p className="text-xs text-slate-500">KPI</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Tasks Completed</span>
+                        <span className="font-semibold text-slate-800">
+                          {member.completedTasks}/{member.totalTasks}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Progress</span>
+                        <span className="font-semibold text-slate-800">
+                          {member.percentage}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Projects</span>
+                        <span className="font-semibold text-purple-600">
+                          {member.projectCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all"
+                          style={{ width: `${member.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 text-center">
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
+                        member.kpi >= 80 ? 'bg-green-100 text-green-800' :
+                        member.kpi >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {member.kpi >= 80 ? 'High Performer' :
+                         member.kpi >= 60 ? 'Good Performance' : 'Needs Attention'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Performance Details View
   if (currentView === "performance-details" && selectedManager) {
     // Categorize members
     const highPerformers = teamData.filter(member => member.kpi >= 80);
     const goodPerformers = teamData.filter(member => member.kpi >= 60 && member.kpi < 80);
     const needsAttention = teamData.filter(member => member.kpi < 60);
+
+    // Prepare data for success matrix bar chart
+    const successMatrixData = [
+      {
+        category: 'High Performers',
+        count: highPerformers.length,
+        percentage: teamData.length > 0 ? Math.round((highPerformers.length / teamData.length) * 100) : 0,
+        color: '#10b981',
+        description: '≥80% KPI'
+      },
+      {
+        category: 'Good Performance',
+        count: goodPerformers.length,
+        percentage: teamData.length > 0 ? Math.round((goodPerformers.length / teamData.length) * 100) : 0,
+        color: '#f59e0b',
+        description: '60-79% KPI'
+      },
+      {
+        category: 'Needs Attention',
+        count: needsAttention.length,
+        percentage: teamData.length > 0 ? Math.round((needsAttention.length / teamData.length) * 100) : 0,
+        color: '#ef4444',
+        description: '<60% KPI'
+      }
+    ];
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
@@ -3801,6 +4031,95 @@ export default function TeamDashboard() {
             subtitle={`${selectedManager}'s Team Performance Breakdown`}
           />
           <Breadcrumb />
+
+          {/* Success Matrix Summary Bar Chart */}
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-slate-200 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">Success Matrix Summary</h2>
+                <p className="text-slate-600">Team performance distribution across KPI ranges</p>
+              </div>
+              <div className="bg-blue-50 px-6 py-3 rounded-lg">
+                <p className="text-sm text-slate-600">
+                  Total Team Members:{" "}
+                  <span className="font-bold text-blue-600 text-xl">
+                    {teamData.length}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={successMatrixData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                  barCategoryGap="20%"
+                >
+                  <XAxis
+                    dataKey="category"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#374151' }}
+                    interval={0}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#374151' }}
+                    label={{ value: 'Number of Members', angle: -90, position: 'insideLeft' }}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
+                            <p className="font-bold text-slate-800 mb-2">
+                              {data.category}
+                            </p>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">Members:</span> {data.count}
+                            </p>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">Percentage:</span> {data.percentage}%
+                            </p>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">KPI Range:</span> {data.description}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {successMatrixData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              {successMatrixData.map((item, idx) => (
+                <div key={idx} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-600">{item.category}</span>
+                    <span className="text-lg font-bold" style={{ color: item.color }}>
+                      {item.count}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">{item.description}</span>
+                    <span className="text-sm font-semibold text-slate-700">{item.percentage}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* High Performers Section */}
           {highPerformers.length > 0 && (
