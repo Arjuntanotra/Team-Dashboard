@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Filter,
   X,
+  Mail,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -27,6 +28,7 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
+import EmailManager from "./EmailManager";
 
 export default function TeamDashboard() {
   const [excelData, setExcelData] = useState(null);
@@ -1077,7 +1079,7 @@ export default function TeamDashboard() {
           <Breadcrumb />
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
             <div onClick={() => { setCurrentView("all-completions"); setSelectedMember(null); setSelectedProject(null); }} className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all">
               <CheckCircle className="w-10 h-10 mb-3 opacity-80" />
               <p className="text-green-100 text-sm mb-1">Completed Tasks</p>
@@ -1116,9 +1118,19 @@ export default function TeamDashboard() {
               onClick={navigateToAllTasks}
               className="bg-gradient-to-br from-slate-500 to-slate-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
             >
-              <BarChart3 className="w-10 h-10 mb-3 opacity-80" />
+              <Filter className="w-10 h-10 mb-3 opacity-80" />
               <p className="text-slate-100 text-sm mb-1">All Tasks</p>
               <p className="text-3xl font-bold">{totalTasks}</p>
+              <p className="text-slate-200 text-xs mt-2">Advanced filters →</p>
+            </div>
+            <div
+              onClick={() => setCurrentView("email-management")}
+              className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
+            >
+              <Mail className="w-10 h-10 mb-3 opacity-80" />
+              <p className="text-teal-100 text-sm mb-1">Email Management</p>
+              <p className="text-3xl font-bold">📧</p>
+              <p className="text-teal-200 text-xs mt-2">Configure reminders →</p>
             </div>
           </div>
 
@@ -3800,6 +3812,23 @@ export default function TeamDashboard() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Email Management View
+  if (currentView === "email-management" && selectedManager) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+        <div className="max-w-7xl mx-auto">
+          <Header
+            title="Email Management"
+            subtitle={`${selectedManager}'s Team Email Configuration`}
+          />
+          <Breadcrumb />
+
+          <EmailManager selectedManager={selectedManager} teamData={teamData} />
         </div>
       </div>
     );
