@@ -21,18 +21,38 @@ const EmailManager = ({ selectedManager, teamData }) => {
   }, [teamData]);
 
   const fetchEmailForMember = async (memberName) => {
+    // Don't fetch if we're currently loading/saving
+    if (loading) return;
+
     try {
       const response = await fetch(`${BACKEND_URL}/api/team-member/${encodeURIComponent(memberName)}/email`);
       if (response.ok) {
         const data = await response.json();
         setEmails(prev => ({ ...prev, [memberName]: data.email }));
+      } else if (response.status === 404) {
+        // Email not configured yet, that's normal
+        setEmails(prev => ({ ...prev, [memberName]: null }));
       }
     } catch (error) {
-      // Email not set yet, that's okay
+      // Network error - silently fail, don't interfere with user operations
+      console.warn(`Could not fetch email for ${memberName}:`, error.message);
     }
   };
 
   const updateEmailForMember = async (memberName, email) => {
+    // Validate email format
+    if (!email || !email.includes('@') || !email.includes('.')) {
+      setMessage('Please enter a valid email address');
+      return;
+    }
+
+    // Prevent multiple simultaneous requests for the same member
+    if (loading) {
+      setMessage('Please wait, another request is in progress');
+      return;
+    }
+
+    setLoading(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/team-member/${encodeURIComponent(memberName)}/email`, {
         method: 'POST',
@@ -46,13 +66,20 @@ const EmailManager = ({ selectedManager, teamData }) => {
 
       if (response.ok) {
         setEmails(prev => ({ ...prev, [memberName]: email }));
-        setMessage(`Email updated for ${memberName}`);
+        setMessage(`✅ Email updated successfully for ${memberName}`);
         setTimeout(() => setMessage(''), 3000);
       } else {
-        setMessage(data.error || 'Failed to update email');
+        setMessage(`❌ ${data.error || 'Failed to update email'}`);
       }
     } catch (error) {
-      setMessage('Failed to update email');
+      console.error('Error updating email:', error);
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        setMessage('❌ Cannot connect to server. Please ensure the backend is running.');
+      } else {
+        setMessage('❌ Failed to update email. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -275,8 +302,10 @@ const EmailManager = ({ selectedManager, teamData }) => {
                       updateEmailForMember(member.name, email);
                     }
                   }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
+                  {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                   Update
                 </button>
               </div>
