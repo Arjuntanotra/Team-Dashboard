@@ -171,7 +171,7 @@ export default function Savings() {
         setFileUploaded(true);
         setError(null);
       } catch (err) {
-        console.error("Error processing Excel file:", err);
+        console.error("Error processing Excel file :", err);
         setError("Error reading Excel file. Please make sure it's a valid Excel file with the correct column structure.");
       }
 
