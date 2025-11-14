@@ -118,10 +118,10 @@ function Home() {
         savingsHeaders.forEach((header, index) => {
           obj[header] = row[index] || '';
         });
-        return obj;
+        return obj; 
       });
 
-      // Parse vendor data
+      // Parse vendor data   th
       const vendorRows = parseCSV(vendorCsv);
       const vendorHeaders = vendorRows[0];
       const vendorDataRows = vendorRows.slice(1);
@@ -139,7 +139,7 @@ function Home() {
         vendors: vendorData,
       });
     } catch (err) {
-      console.error('Error loading dashboard data:', err);
+      console.error('Error loading dashboard data :', err);
       setError(err.message);
     }
 
