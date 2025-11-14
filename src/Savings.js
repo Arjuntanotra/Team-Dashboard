@@ -41,8 +41,47 @@ export default function Savings() {
 
       const csvText = await response.text();
 
-      // Parse CSV data
-      const rows = csvText.split('\n').map(row => row.split(',').map(cell => cell.replace(/^"|"$/g, '')));
+      // Parse CSV data more robustly
+      const parseCSV = (csv) => {
+        const lines = csv.split('\n');
+        const result = [];
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // Simple CSV parser that handles quoted fields
+          const row = [];
+          let current = '';
+          let inQuotes = false;
+
+          for (let j = 0; j < line.length; j++) {
+            const char = line[j];
+            if (char === '"') {
+              if (inQuotes && line[j + 1] === '"') {
+                // Escaped quote
+                current += '"';
+                j++; // Skip next quote
+              } else {
+                // Toggle quote state
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              // Field separator
+              row.push(current.replace(/^"|"$/g, ''));
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+
+          // Add the last field
+          row.push(current.replace(/^"|"$/g, ''));
+          result.push(row);
+        }
+        return result;
+      };
+
+      const rows = parseCSV(csvText);
 
       if (rows.length <= 1) {
         throw new Error("Google Sheet is empty or has no data rows.");
@@ -55,7 +94,6 @@ export default function Savings() {
       console.log("Loaded Google Sheets Data:", { headers, dataRows });
 
       // Transform the data to match our expected format
-      // Use only the first 8 columns as specified by the user
       const transformedData = dataRows.map((row, index) => {
         if (!row || row.length < 8) return null; // Skip incomplete rows
 
@@ -69,15 +107,11 @@ export default function Savings() {
         const expectedSavingsRaw = String(row[6] || '').replace(/[₹,\s]/g, '');
         const remarks = String(row[7] || '').trim() || "";
 
+        // Parse expected savings directly from the sheet (column 6) - this is the key value
+        const expectedSavings = parseFloat(expectedSavingsRaw) || 0;
+
         // Parse saving percentage (remove % and convert to decimal)
-        const savingPercentageFromSheet = parseFloat(savingPercentageRaw) / 100 || 0;
-
-        // ALWAYS calculate expected savings: (LPP - CQP) - ignore sheet values as they may be incorrect
-        const expectedSavings = lppQuotedPrice - cqp;
-
-        // Calculate saving percentage based on actual savings
-        const savingPercentage = lppQuotedPrice > 0 && lppQuotedPrice !== cqp ?
-          Math.abs(expectedSavings) / lppQuotedPrice : savingPercentageFromSheet;
+        const savingPercentage = parseFloat(savingPercentageRaw) / 100 || 0;
 
         return {
           unit: unit,
@@ -294,7 +328,16 @@ export default function Savings() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-2 text-sm text-slate-600 mb-4">
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-green-200">
+            <div className="text-left">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent mb-2">
+                Cost Savings Dashboard
+              </h1>
+              <p className="text-slate-600">Track savings from each unit and chat interactions</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-slate-600 mt-4">
             <Link
               to="/"
               className="cursor-pointer hover:text-green-600 hover:underline flex items-center gap-1 font-medium transition-colors"
@@ -329,15 +372,6 @@ export default function Savings() {
                 <span className="text-green-700 font-semibold">{selectedProject}</span>
               </>
             )}
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-green-200">
-            <div className="text-left">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent mb-2">
-                Cost Savings Dashboard
-              </h1>
-              <p className="text-slate-600">Track savings from each unit and chat interactions</p>
-            </div>
           </div>
         </div>
 
