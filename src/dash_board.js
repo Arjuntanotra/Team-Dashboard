@@ -1080,52 +1080,135 @@ export default function TeamDashboard({ initialView = "dashboard" }) {
           />
           <Breadcrumb />
 
+          {/* Task Navigation Tabs */}
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 mb-8 p-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentView("all-completions")}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === "all-completions"
+                    ? "bg-green-600 text-white shadow-lg shadow-green-200"
+                    : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="font-semibold">Completed Tasks</span>
+                </div>
+              </button>
+              <button
+                onClick={navigateToInProgressTasks}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === "in-progress-tasks"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                    : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  <span className="font-semibold">In Progress Tasks</span>
+                </div>
+              </button>
+              <button
+                onClick={navigateToAllTasks}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  currentView === "all-tasks"
+                    ? "bg-slate-700 text-white shadow-lg shadow-slate-300"
+                    : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4" />
+                  <span className="font-semibold">All Tasks</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-            <div onClick={() => { setCurrentView("all-completions"); setSelectedMember(null); setSelectedProject(null); }} className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all">
-              <CheckCircle className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-green-100 text-sm mb-1">Completed Tasks</p>
-              <p className="text-3xl font-bold">{managerInfo?.completedTasks || 0}</p>
-            </div>
-            <div onClick={navigateToInProgressTasks} className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all">
-              <Clock className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-blue-100 text-sm mb-1">In Progress Tasks</p>
-              <p className="text-3xl font-bold">{managerInfo?.inProgressTasks || 0}</p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <div onClick={() => setCurrentView("team-kpi-breakdown")} className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all">
-              <BarChart3 className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-indigo-100 text-sm mb-1">Team Average KPI</p>
-              <p className="text-3xl font-bold">{managerInfo?.averageKpi || 0}%</p>
-              <p className="text-indigo-200 text-xs mt-2">Click to view breakdown →</p>
+              <BarChart3 className="w-12 h-12 mb-4 opacity-80" />
+              <p className="text-indigo-100 text-sm mb-2">Team Average KPI</p>
+              <p className="text-4xl font-bold">{managerInfo?.averageKpi || 0}%</p>
+              <p className="text-indigo-200 text-sm mt-3">Click to view breakdown →</p>
             </div>
             <div
               onClick={navigateToAllMembers}
               className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
             >
-              <Users className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-purple-100 text-sm mb-1">Team Members</p>
-              <p className="text-3xl font-bold">{teamData.length}</p>
+              <Users className="w-12 h-12 mb-4 opacity-80" />
+              <p className="text-purple-100 text-sm mb-2">Team Members</p>
+              <p className="text-4xl font-bold">{teamData.length}</p>
             </div>
             <div
               onClick={navigateToAllProjects}
               className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
             >
-              <FolderOpen className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-orange-100 text-sm mb-1">Total Projects</p>
-              <p className="text-3xl font-bold">
+              <FolderOpen className="w-12 h-12 mb-4 opacity-80" />
+              <p className="text-orange-100 text-sm mb-2">Total Projects</p>
+              <p className="text-4xl font-bold">
                 {managerInfo?.projectCount || 0}
               </p>
             </div>
-            <div
-              onClick={navigateToAllTasks}
-              className="bg-gradient-to-br from-slate-500 to-slate-600 rounded-xl p-6 shadow-lg text-white cursor-pointer hover:scale-105 transition-all"
-            >
-              <Filter className="w-10 h-10 mb-3 opacity-80" />
-              <p className="text-slate-100 text-sm mb-1">All Tasks</p>
-              <p className="text-3xl font-bold">{totalTasks}</p>
-              <p className="text-slate-200 text-xs mt-2">Advanced filters →</p>
-            </div>
+          </div>
 
+          {/* Task Details Dropdown Navigation */}
+          <div className="relative">
+            <div
+              className="inline-flex items-center gap-3 px-6 py-3 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer transition-all border border-slate-300 hover:border-slate-400 group mb-8"
+              onMouseEnter={() => setIsFiltersOpen(true)}
+              onMouseLeave={() => setIsFiltersOpen(false)}
+            >
+              <Filter className="w-5 h-5 text-slate-600" />
+              <span className="font-semibold text-slate-800">Task Details</span>
+              <ChevronRight className={`w-4 h-4 text-slate-600 transform transition-transform ${isFiltersOpen ? 'rotate-90' : ''}`} />
+
+              {/* Dropdown Menu */}
+              <div className={`absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-slate-200 py-2 min-w-[200px] z-50 ${isFiltersOpen ? 'block' : 'hidden'}`}>
+                <button
+                  onClick={() => {
+                    setCurrentView("all-completions");
+                    setSelectedMember(null);
+                    setSelectedProject(null);
+                    setIsFiltersOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-slate-100 last:border-b-0"
+                >
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <div>
+                    <div className="font-medium text-slate-800">Completed Tasks</div>
+                    <div className="text-sm text-slate-600">Successfully finished tasks</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    navigateToInProgressTasks();
+                    setIsFiltersOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-b-0"
+                >
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <div className="font-medium text-slate-800">In Progress Tasks</div>
+                    <div className="text-sm text-slate-600">Currently active tasks</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    navigateToAllTasks();
+                    setIsFiltersOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                >
+                  <Filter className="w-5 h-5 text-slate-600" />
+                  <div>
+                    <div className="font-medium text-slate-800">All Tasks</div>
+                    <div className="text-sm text-slate-600">All team tasks with filters</div>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Quick Insights */}

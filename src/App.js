@@ -1,744 +1,1953 @@
-// import React, { useState, useEffect } from 'react';
-// import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-// import TeamDashboard from './dash_board';
-// import Savings from './Savings';
-// import VendorAddition from './VendorAddition';
-// import * as XLSX from 'xlsx';
-// import {
-//   BarChart,
-//   Bar,
-//   XAxis,
-//   YAxis,
-//   CartesianGrid,
-//   Tooltip,
-//   Legend,
-//   ResponsiveContainer,
-//   PieChart,
-//   Pie,
-//   Cell,
-//   LineChart,
-//   Line,
-// } from 'recharts';
-
-// function Home() {
-//   const [dashboardData, setDashboardData] = useState({
-//     team: null,
-//     savings: null,
-//     vendors: null,
-//   });
-//   const [isLoading, setIsLoading] = useState(true);
-//   const [error, setError] = useState(null);
-
-//   const GOOGLE_SHEET_ID = "1yTQxwYjcB_VbBaPssF70p9rkU3vFsdGfqYUnWFLCVtY";
-
-//   useEffect(() => {
-//     loadAllDashboardData();
-//   }, []);
-
-//   const loadAllDashboardData = async () => {
-//     setIsLoading(true);
-//     setError(null);
-
-//     try {
-//       // Load data from all three sheets
-//       const [teamResponse, savingsResponse, vendorResponse] = await Promise.all([
-//         fetch(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`),
-//         fetch(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet2`),
-//         fetch(`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet3`),
-//       ]);
-
-//       if (!teamResponse.ok || !savingsResponse.ok || !vendorResponse.ok) {
-//         throw new Error('Failed to fetch dashboard data');
-//       }
-
-//       const [teamCsv, savingsCsv, vendorCsv] = await Promise.all([
-//         teamResponse.text(),
-//         savingsResponse.text(),
-//         vendorResponse.text(),
-//       ]);
-
-//       // Robust CSV parser function
-//       const parseCSV = (csv) => {
-//         const lines = csv.split('\n');
-//         const result = [];
-//         for (let i = 0; i < lines.length; i++) {
-//           const line = lines[i].trim();
-//           if (!line) continue;
-
-//           // Simple CSV parser that handles quoted fields
-//           const row = [];
-//           let current = '';
-//           let inQuotes = false;
-
-//           for (let j = 0; j < line.length; j++) {
-//             const char = line[j];
-//             if (char === '"') {
-//               if (inQuotes && line[j + 1] === '"') {
-//                 // Escaped quote
-//                 current += '"';
-//                 j++; // Skip next quote
-//               } else {
-//                 // Toggle quote state
-//                 inQuotes = !inQuotes;
-//               }
-//             } else if (char === ',' && !inQuotes) {
-//               // Field separator
-//               row.push(current.replace(/^"|"$/g, ''));
-//               current = '';
-//             } else {
-//               current += char;
-//             }
-//           }
-
-//           // Add the last field
-//           row.push(current.replace(/^"|"$/g, ''));
-//           result.push(row);
-//         }
-//         return result;
-//       };
-
-//       // Parse team data
-//       const teamRows = parseCSV(teamCsv);
-//       const teamHeaders = teamRows[0];
-//       const teamDataRows = teamRows.slice(1);
-//       const teamData = teamDataRows.map(row => {
-//         const obj = {};
-//         teamHeaders.forEach((header, index) => {
-//           obj[header] = row[index] || '';
-//         });
-//         return obj;
-//       });
-
-//       // Parse savings data
-//       const savingsRows = parseCSV(savingsCsv);
-//       const savingsHeaders = savingsRows[0];
-//       const savingsDataRows = savingsRows.slice(1);
-//       const savingsData = savingsDataRows.map(row => {
-//         const obj = {};
-//         savingsHeaders.forEach((header, index) => {
-//           obj[header] = row[index] || '';
-//         });
-//         return obj; 
-//       });
-
-//       // Parse vendor data   th
-//       const vendorRows = parseCSV(vendorCsv);
-//       const vendorHeaders = vendorRows[0];
-//       const vendorDataRows = vendorRows.slice(1);
-//       const vendorData = vendorDataRows.map(row => {
-//         const obj = {};
-//         vendorHeaders.forEach((header, index) => {
-//           obj[header] = row[index] || '';
-//         });
-//         return obj;
-//       });
-
-//       setDashboardData({
-//         team: teamData,
-//         savings: savingsData,
-//         vendors: vendorData,
-//       });
-//     } catch (err) {
-//       console.error('Error loading dashboard data :', err);
-//       setError(err.message);
-//     }
-
-//     setIsLoading(false);
-//   };
-
-//   // Prepare chart data for each dashboard separately
-//   const getTeamStats = () => {
-//     if (!dashboardData.team) return null;
-
-//     const totalTasks = dashboardData.team.length;
-//     const completedTasks = dashboardData.team.filter(row =>
-//       (row.Status || "").toLowerCase().includes("complete") ||
-//       (row.Status || "").toLowerCase().includes("done")
-//     ).length;
-
-//     return { totalTasks, completedTasks };
-//   };
-
-//   const getSavingsStats = () => {
-//     if (!dashboardData.savings) return null;
-
-//     const totalSavings = dashboardData.savings.reduce((sum, row) => {
-//       // Use the exact column name "Expected Savings (INR)"
-//       const savings = parseFloat(String(row['Expected Savings (INR)'] || 0).replace(/[₹,\s]/g, '')) || 0;
-//       return sum + savings;
-//     }, 0);
-
-//     const totalProjects = dashboardData.savings.length;
-
-//     return { totalSavings, totalProjects };
-//   };
-
-//   const getVendorStats = () => {
-//     if (!dashboardData.vendors) return null;
-
-//     const totalVendors = dashboardData.vendors.length;
-//     const uniqueUnits = new Set(dashboardData.vendors.map(row => row.Unit || row.unit)).size;
-//     const uniqueCategories = new Set(dashboardData.vendors.map(row => row.Category || row.category)).size;
-
-//     return { totalVendors, uniqueUnits, uniqueCategories };
-//   };
-
-//   const getTeamChartData = () => {
-//     if (!dashboardData.team) return [];
-
-//     // Calculate manager KPIs and project counts
-//     const managerData = {};
-
-//     dashboardData.team.forEach(row => {
-//       const manager = row.Manager || row.ManagerName || 'Unknown';
-//       const project = row.Project || row.ProjectName;
-
-//       if (!managerData[manager]) {
-//         managerData[manager] = {
-//           manager: manager.length > 12 ? manager.substring(0, 12) + '...' : manager,
-//           fullManager: manager,
-//           projects: new Set(),
-//           totalTasks: 0,
-//           completedTasks: 0,
-//           kpiSum: 0,
-//           kpiCount: 0,
-//         };
-//       }
-
-//       if (project) {
-//         managerData[manager].projects.add(project);
-//       }
-
-//       managerData[manager].totalTasks++;
-
-//       const status = (row.Status || "").toLowerCase();
-//       if (status.includes("complete") || status.includes("done")) {
-//         managerData[manager].completedTasks++;
-//       }
-
-//       // Calculate KPI for this task
-//       const startDate = row.StartDate;
-//       const completedDate = row.CompletedDate || row.ActualDate || row.CompletionDate;
-//       const deadline = row.Deadline || row.DueDate;
-
-//       if (startDate && completedDate && deadline) {
-//         const kpi = calculateKPI(startDate, completedDate, deadline);
-//         if (kpi !== null) {
-//           managerData[manager].kpiSum += kpi;
-//           managerData[manager].kpiCount++;
-//         }
-//       }
-//     });
-
-//     // Calculate average KPIs and prepare chart data
-//     return Object.values(managerData)
-//       .map(manager => ({
-//         manager: manager.manager,
-//         fullManager: manager.fullManager,
-//         projects: manager.projects.size,
-//         avgKpi: manager.kpiCount > 0 ? Math.round(manager.kpiSum / manager.kpiCount) : 85, // Default KPI of 85% for managers with no completed tasks
-//         completionRate: manager.totalTasks > 0 ? Math.round((manager.completedTasks / manager.totalTasks) * 100) : 0,
-//       }))
-//       .sort((a, b) => b.projects - a.projects) // Sort by number of projects
-//       .slice(0, 6); // Show top 6 managers
-//   };
-
-//   // Helper function to calculate KPI (same as in team dashboard)
-//   const calculateKPI = (startDateStr, completionDateStr, deadlineStr) => {
-//     if (!completionDateStr || completionDateStr === "N/A" || completionDateStr === "-") return null;
-
-//     try {
-//       const start = parseDate(startDateStr);
-//       const completion = parseDate(completionDateStr);
-//       const deadline = parseDate(deadlineStr);
-
-//       if (!start || !completion || !deadline) return null;
-
-//       const delayMs = completion - deadline;
-//       const delayDays = Math.ceil(delayMs / (1000 * 60 * 60 * 24));
-
-//       if (delayDays <= 0) return 100;
-
-//       const weeksDelay = Math.ceil(delayDays / 7);
-//       const kpi = Math.max(0, 100 - (weeksDelay * 5));
-
-//       return Math.round(kpi);
-//     } catch {
-//       return null;
-//     }
-//   };
-
-//   const parseDate = (dateStr) => {
-//     if (!dateStr || dateStr === "N/A" || dateStr === "-") return null;
-//     try {
-//       if (dateStr.includes("/")) {
-//         const [day, month, year] = dateStr.split("/");
-//         return new Date(year, month - 1, day);
-//       }
-//       return new Date(dateStr);
-//     } catch {
-//       return null;
-//     }
-//   };
-
-//   const getSavingsChartData = () => {
-//     if (!dashboardData.savings) return [];
-
-//     // Group savings by unit (top 6) - use "Expected Savings (INR)" column
-//     const unitData = {};
-//     dashboardData.savings.forEach(row => {
-//       const unit = row.Unit || row.unit || 'Unknown';
-//       // Use the correct column name "Expected Savings (INR)"
-//       const savings = parseFloat(String(row['Expected Savings (INR)'] || 0).replace(/[₹,\s]/g, '')) || 0;
-
-//       if (!unitData[unit]) {
-//         unitData[unit] = {
-//           unit: unit.length > 10 ? unit.substring(0, 10) + '...' : unit,
-//           fullUnit: unit,
-//           totalSavings: 0,
-//           projectCount: 0,
-//         };
-//       }
-
-//       unitData[unit].totalSavings += savings;
-//       unitData[unit].projectCount += 1;
-//     });
-
-//     return Object.values(unitData)
-//       .sort((a, b) => b.totalSavings - a.totalSavings)
-//       .slice(0, 6)
-//       .map(item => ({
-//         unit: item.unit,
-//         savings: item.totalSavings, // Show exact savings amount
-//         fullUnit: item.fullUnit,
-//         projectCount: item.projectCount,
-//         totalSavings: item.totalSavings,
-//       }));
-//   };
-
-//   const getVendorChartData = () => {
-//     if (!dashboardData.vendors) return [];
-
-//     // Group vendors by unit (top 6)
-//     const unitVendors = {};
-//     dashboardData.vendors.forEach(row => {
-//       const unit = row.Unit || row.unit || 'Unknown';
-//       unitVendors[unit] = (unitVendors[unit] || 0) + 1;
-//     });
-
-//     return Object.entries(unitVendors)
-//       .sort(([,a], [,b]) => b - a)
-//       .slice(0, 6)
-//       .map(([unit, vendors]) => ({
-//         unit: unit.length > 10 ? unit.substring(0, 10) + '...' : unit,
-//         vendors,
-//         fullUnit: unit
-//       }));
-//   };
-
-//   const teamStats = getTeamStats();
-//   const savingsStats = getSavingsStats();
-//   const vendorStats = getVendorStats();
-//   const teamChartData = getTeamChartData();
-//   const savingsChartData = getSavingsChartData();
-//   const vendorChartData = getVendorChartData();
-
-//   if (isLoading) {
-//     return (
-//       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
-//         <div className="text-center">
-//           <div className="bg-white rounded-2xl p-8 shadow-xl">
-//             <div className="w-16 h-16 bg-blue-600 animate-spin rounded-full mx-auto mb-4 border-4 border-blue-200 border-t-transparent"></div>
-//             <p className="text-slate-700 text-xl font-semibold">Loading Dashboard Overview...</p>
-//             <p className="text-slate-500 text-sm mt-2">Fetching data from all modules</p>
-//           </div>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   if (error) {
-//     return (
-//       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
-//         <div className="max-w-4xl mx-auto">
-//           <div className="bg-white rounded-2xl p-8 border border-red-200 shadow-xl text-center">
-//             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-//               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-//               </svg>
-//             </div>
-//             <h2 className="text-2xl font-bold text-slate-800 mb-4">Error Loading Data</h2>
-//             <p className="text-red-600 mb-6">{error}</p>
-//             <button
-//               onClick={loadAllDashboardData}
-//               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg"
-//             >
-//               Retry Loading
-//             </button>
-//           </div>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
-//       <div className="max-w-7xl mx-auto">
-//         {/* Header */}
-//         <div className="text-center mb-12">
-//           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-4">
-//             Procurement Team Dashboard
-//           </h1>
-//           <p className="text-slate-600 text-lg">
-//             Comprehensive overview of team performance, cost savings, and vendor management
-//           </p>
-//         </div>
-
-//         {/* Module Cards */}
-//         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-//           {/* Team Dashboard Card */}
-//           <div
-//             onClick={() => window.location.href = '/dashboard'}
-//             className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
-//           >
-//             <div className="text-center">
-//               <div className="bg-gradient-to-br from-blue-500 to-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-//                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-//                 </svg>
-//               </div>
-//               <h3 className="text-2xl font-bold text-slate-800 mb-3">Team Dashboard</h3>
-//               <p className="text-slate-600 mb-4">
-//                 Monitor team performance, track tasks, and manage projects
-//               </p>
-//               <div className="text-blue-600 font-semibold group-hover:text-blue-700 transition-colors">
-//                 Click to open →
-//               </div>
-//             </div>
-//           </div>
-
-//           {/* Savings Card */}
-//           <div
-//             onClick={() => window.location.href = '/savings'}
-//             className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
-//           >
-//             <div className="text-center">
-//               <div className="bg-gradient-to-br from-green-500 to-green-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-//                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-//                 </svg>
-//               </div>
-//               <h3 className="text-2xl font-bold text-slate-800 mb-3">Savings</h3>
-//               <p className="text-slate-600 mb-4">
-//                 Track cost savings and financial performance metrics
-//               </p>
-//               <div className="text-green-600 font-semibold group-hover:text-green-700 transition-colors">
-//                 Click to open →
-//               </div>
-//             </div>
-//           </div>
-
-//           {/* New Vendor Addition Card */}
-//           <div
-//             onClick={() => window.location.href = '/vendors'}
-//             className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
-//           >
-//             <div className="text-center">
-//               <div className="bg-gradient-to-br from-purple-500 to-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-//                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-//                 </svg>
-//               </div>
-//               <h3 className="text-2xl font-bold text-slate-800 mb-3">New Vendor Addition</h3>
-//               <p className="text-slate-600 mb-4">
-//                 Manage vendor onboarding and supplier relationships
-//               </p>
-//               <div className="text-purple-600 font-semibold group-hover:text-purple-700 transition-colors">
-//                 Click to open →
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Charts Section */}
-//         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-//           {/* Team Projects & KPI Chart */}
-//           {teamChartData.length > 0 && (
-//             <div className="bg-white rounded-2xl p-6 shadow-lg border border-blue-200">
-//               <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Manager Projects & KPIs</h3>
-//               <div className="h-64">
-//                 <ResponsiveContainer width="100%" height="100%">
-//                   <BarChart data={teamChartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-//                     <CartesianGrid strokeDasharray="3 3" />
-//                     <XAxis
-//                       dataKey="manager"
-//                       fontSize={10}
-//                       angle={-45}
-//                       textAnchor="end"
-//                       height={70}
-//                     />
-//                     <YAxis fontSize={11} />
-//                     <Tooltip
-//                       content={({ active, payload, label }) => {
-//                         if (active && payload && payload.length) {
-//                           const data = teamChartData.find(d => d.manager === label);
-//                           return (
-//                             <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
-//                               <p className="font-bold text-slate-800 mb-2">{data?.fullManager || label}</p>
-//                               <p className="text-slate-600">Projects: <span className="font-semibold">{data?.projects}</span></p>
-//                               <p className="text-slate-600">Avg KPI: <span className="font-semibold">{data?.avgKpi}%</span></p>
-//                               <p className="text-slate-600">Completion Rate: <span className="font-semibold">{data?.completionRate}%</span></p>
-//                             </div>
-//                           );
-//                         }
-//                         return null;
-//                       }}
-//                     />
-//                     <Bar dataKey="projects" fill="#3b82f6" name="Projects" radius={[2, 2, 0, 0]} />
-//                     <Bar dataKey="avgKpi" fill="#10b981" name="Avg KPI %" radius={[2, 2, 0, 0]} />
-//                   </BarChart>
-//                 </ResponsiveContainer>
-//               </div>
-//               <div className="flex justify-center gap-6 mt-4 text-sm">
-//                 <div className="flex items-center gap-2">
-//                   <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-//                   <span className="text-slate-600">Projects</span>
-//                 </div>
-//                 <div className="flex items-center gap-2">
-//                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
-//                   <span className="text-slate-600">Avg KPI %</span>
-//                 </div>
-//               </div>
-
-//               {/* Team Summary */}
-//               <div className="mt-6 pt-4 border-t border-slate-200">
-//                 <div className="grid grid-cols-3 gap-4 text-center">
-//                   <div>
-//                     <p className="text-2xl font-bold text-blue-600">{teamStats?.totalTasks || 0}</p>
-//                     <p className="text-sm text-slate-500">Total Tasks</p>
-//                   </div>
-//                   <div>
-//                     <p className="text-2xl font-bold text-green-600">{teamStats?.completedTasks || 0}</p>
-//                     <p className="text-sm text-slate-500">Completed Tasks</p>
-//                   </div>
-//                   <div>
-//                     <p className="text-2xl font-bold text-purple-600">{teamChartData.length > 0 ? Math.round(teamChartData.reduce((sum, m) => sum + m.avgKpi, 0) / teamChartData.length) : 0}%</p>
-//                     <p className="text-sm text-slate-500">Avg Team KPI</p>
-//                   </div>
-//                 </div>
-//               </div>
-//             </div>
-//           )}
-
-//           {/* Savings by Unit Chart */}
-//           {savingsChartData.length > 0 && (
-//             <div className="bg-white rounded-2xl p-6 shadow-lg border border-green-200">
-//               <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Top Units by Savings</h3>
-//               <div className="h-64">
-//                 <ResponsiveContainer width="100%" height="100%">
-//                   <BarChart data={savingsChartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-//                     <CartesianGrid strokeDasharray="3 3" />
-//                     <XAxis
-//                       dataKey="unit"
-//                       fontSize={11}
-//                       angle={-45}
-//                       textAnchor="end"
-//                       height={60}
-//                     />
-//                     <YAxis fontSize={11} />
-//                     <Tooltip
-//                       content={({ active, payload, label }) => {
-//                         if (active && payload && payload.length) {
-//                           const data = savingsChartData.find(d => d.unit === label);
-//                           return (
-//                             <div className="bg-white p-4 rounded-lg shadow-xl border border-slate-200">
-//                               <p className="font-bold text-slate-800 mb-2">{data?.fullUnit || label}</p>
-//                               <p className="text-slate-600">Savings: <span className="font-semibold">₹{data?.totalSavings?.toLocaleString()}L</span></p>
-//                               <p className="text-slate-600">Projects: <span className="font-semibold">{data?.projectCount}</span></p>
-//                             </div>
-//                           );
-//                         }
-//                         return null;
-//                       }}
-//                     />
-//                     <Bar dataKey="savings" fill="#10b981" radius={[2, 2, 0, 0]} />
-//                   </BarChart>
-//                 </ResponsiveContainer>
-//               </div>
-
-//               {/* Savings Summary */}
-//               <div className="mt-6 pt-4 border-t border-slate-200">
-//                 <div className="grid grid-cols-2 gap-4 text-center">
-//                   <div>
-//                     <p className="text-2xl font-bold text-green-600">₹{savingsStats?.totalSavings?.toFixed(2)}L</p>
-//                     <p className="text-sm text-slate-500">Total Savings</p>
-//                   </div>
-//                   <div>
-//                     <p className="text-2xl font-bold text-blue-600">{savingsChartData[0]?.fullUnit || 'N/A'}</p>
-//                     <p className="text-sm text-slate-500">Top Saving Unit</p>
-//                   </div>
-//                 </div>
-//               </div>
-//             </div>
-//           )}
-
-//           {/* Vendors by Unit Chart */}
-//           {vendorChartData.length > 0 && (
-//             <div className="bg-white rounded-2xl p-6 shadow-lg border border-purple-200">
-//               <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Top Units by Vendors</h3>
-//               <div className="h-64">
-//                 <ResponsiveContainer width="100%" height="100%">
-//                   <BarChart data={vendorChartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-//                     <CartesianGrid strokeDasharray="3 3" />
-//                     <XAxis
-//                       dataKey="unit"
-//                       fontSize={11}
-//                       angle={-45}
-//                       textAnchor="end"
-//                       height={60}
-//                     />
-//                     <YAxis fontSize={11} />
-//                     <Tooltip
-//                       formatter={(value) => [value, 'Vendors']}
-//                       labelFormatter={(label) => vendorChartData.find(d => d.unit === label)?.fullUnit || label}
-//                     />
-//                     <Bar dataKey="vendors" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
-//                   </BarChart>
-//                 </ResponsiveContainer>
-//               </div>
-
-//               {/* Vendor Summary */}
-//               <div className="mt-6 pt-4 border-t border-slate-200">
-//                 <div className="grid grid-cols-2 gap-4 text-center">
-//                   <div>
-//                     <p className="text-2xl font-bold text-purple-600">{vendorStats?.totalVendors || 0}</p>
-//                     <p className="text-sm text-slate-500">Total Vendors</p>
-//                   </div>
-//                   <div>
-//                     <p className="text-2xl font-bold text-blue-600">{vendorChartData[0]?.fullUnit || 'N/A'}</p>
-//                     <p className="text-sm text-slate-500">Top Vendor Unit</p>
-//                   </div>
-//                 </div>
-//               </div>
-//             </div>
-//           )}
-//         </div>
-
-//         {/* Overview Stats Cards */}
-//         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-//           {/* Team Stats Card */}
-//           {teamStats && (
-//             <div className="bg-white rounded-xl p-6 shadow-lg border border-blue-200">
-//               <div className="flex items-center justify-between mb-4">
-//                 <div className="flex items-center gap-4">
-//                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-//                     <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-//                     </svg>
-//                   </div>
-//                   <div>
-//                     <h3 className="text-lg font-bold text-slate-800">Team Performance</h3>
-//                     <p className="text-sm text-slate-500">Task Management</p>
-//                   </div>
-//                 </div>
-//               </div>
-//               <div className="space-y-3">
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Total Tasks</span>
-//                   <span className="font-bold text-blue-600">{teamStats.totalTasks}</span>
-//                 </div>
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Completed</span>
-//                   <span className="font-bold text-green-600">{teamStats.completedTasks}</span>
-//                 </div>
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Completion Rate</span>
-//                   <span className="font-bold text-purple-600">{teamStats.totalTasks > 0 ? Math.round((teamStats.completedTasks / teamStats.totalTasks) * 100) : 0}%</span>
-//                 </div>
-//               </div>
-//             </div>
-//           )}
-
-//           {/* Savings Stats Card */}
-//           {savingsStats && (
-//             <div className="bg-white rounded-xl p-6 shadow-lg border border-green-200">
-//               <div className="flex items-center justify-between mb-4">
-//                 <div className="flex items-center gap-4">
-//                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-//                     <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-//                     </svg>
-//                   </div>
-//                   <div>
-//                     <h3 className="text-lg font-bold text-slate-800">Cost Savings</h3>
-//                     <p className="text-sm text-slate-500">Financial Performance</p>
-//                   </div>
-//                 </div>
-//               </div>
-//               <div className="space-y-3">
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Total Savings</span>
-//                   <span className="font-bold text-green-600">₹{savingsStats.totalSavings?.toFixed(2)}L</span>
-//                 </div>
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Projects</span>
-//                   <span className="font-bold text-blue-600">{savingsStats.totalProjects}</span>
-//                 </div>
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Avg per Project</span>
-//                   <span className="font-bold text-purple-600">₹{(savingsStats.totalSavings / savingsStats.totalProjects)?.toFixed(2)}L</span>
-//                 </div>
-//               </div>
-//             </div>
-//           )}
-
-//           {/* Vendor Stats Card */}
-//           {vendorStats && (
-//             <div className="bg-white rounded-xl p-6 shadow-lg border border-purple-200">
-//               <div className="flex items-center justify-between mb-4">
-//                 <div className="flex items-center gap-4">
-//                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-//                     <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-//                     </svg>
-//                   </div>
-//                   <div>
-//                     <h3 className="text-lg font-bold text-slate-800">Vendor Management</h3>
-//                     <p className="text-sm text-slate-500">Supplier Relationships</p>
-//                   </div>
-//                 </div>
-//               </div>
-//               <div className="space-y-3">
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Total Vendors</span>
-//                   <span className="font-bold text-purple-600">{vendorStats.totalVendors}</span>
-//                 </div>
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Business Units</span>
-//                   <span className="font-bold text-blue-600">{vendorStats.uniqueUnits}</span>
-//                 </div>
-//                 <div className="flex justify-between items-center">
-//                   <span className="text-slate-600">Categories</span>
-//                   <span className="font-bold text-green-600">{vendorStats.uniqueCategories}</span>
-//                 </div>
-//               </div>
-//             </div>
-//           )}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// export default function App() {
-//   return (
-//     <Router>
-//       <Routes>
-//         <Route path="/" element={<Home />} />
-//         <Route path="/dashboard" element={<TeamDashboard />} />
-//         <Route path="/savings" element={<Savings />} />
-//         <Route path="/vendors" element={<VendorAddition />} />
-//       </Routes>
-//     </Router>
-//   );
-// }
+import React, { useState, useEffect } from 'react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { RefreshCw, Package, TrendingUp, Users, Target, ArrowLeft, User, Mail, Phone, DollarSign } from 'lucide-react';
+import Savings from './Savings';
+import TotalSavingsPage from './TotalSavingsPage';
+
+const GauravDashboard = () => {
+  // Utility function to format numbers: >= 100 lakhs as crore, else lakhs
+  const formatCurrency = (value) => {
+    if (value >= 100) {
+      return `₹${(value / 100).toFixed(2)}Cr`;
+    }
+    return `₹${value.toFixed(2)}L`;
+  };
+  const [data, setData] = useState([]);
+  const [totalSavings, setTotalSavings] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'profile', 'categories-overview', 'spend-analysis', 'savings-analysis', 'savings', 'vendors-overview', 'total-savings'
+  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [filterMember, setFilterMember] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+
+  const GOOGLE_SHEET_ID = "1yTQxwYjcB_VbBaPssF70p9rkU3vFsdGfqYUnWFLCVtY";
+  const SHEET_NAME = "Sheet3";
+  const COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4", "#ef4444", "#f97316"];
+
+  useEffect(() => {
+    loadData();
+    fetchTotalSavings().catch(console.error);
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    setIsRefreshing(true);
+    setError(null);
+
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch Google Sheet");
+      }
+
+      const csvText = await response.text();
+      const rows = csvText.split('\n').map(row => {
+        // Simple CSV parser that handles quoted fields
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        let i = 0;
+
+        while (i < row.length) {
+          const char = row[i];
+
+          if (char === '"') {
+            if (inQuotes && row[i + 1] === '"') {
+              // Escaped quote
+              current += '"';
+              i++; // Skip next quote
+            } else {
+              // Toggle quote state
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            // Field separator
+            result.push(current.replace(/^"|"$/g, '').trim());
+            current = '';
+          } else if (char === '\t' && !inQuotes) {
+            // Handle tab separators as well
+            result.push(current.replace(/^"|"$/g, '').trim());
+            current = '';
+          } else {
+            current += char;
+          }
+          i++;
+        }
+
+        // Add the last field
+        result.push(current.replace(/^"|"$/g, '').trim());
+        return result;
+      });
+
+      if (rows.length < 2) {
+        throw new Error("Sheet is empty or has insufficient data");
+      }
+
+      const parsedData = rows.slice(1)
+        .filter(row => row.length > 0 && row[0])
+        .map(row => {
+          const item = {
+            srNo: row[0] || '',
+            manager: row[1] || '',
+            member: row[2] || '',
+            group: row[3] || '',  // Group category in column D
+            category: row[3] || '',  // Category is same as group
+            noOfPartCodes: parseInt(row[4]) || 0,
+            avgSpent: parseFloat(row[5]) || 0,
+            targetSavings: parseFloat(row[6]?.replace('%%', '').replace('%', '')) || 20,
+            cumulativeSavings: parseFloat(row[7]?.replace('%', '').replace(',', '').trim()) || 0,
+            vendors: []
+          };
+
+          // Data parsing complete
+
+          // Vendors start from column 8 onwards
+          for (let i = 8; i < row.length; i++) {
+            if (row[i] && row[i].trim()) {
+              item.vendors.push(row[i].trim());
+            }
+          }
+
+          return item;
+        })
+        .filter(item => item.manager === 'Gaurav Maheshwari');
+
+      setData(parsedData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const calculateMetrics = () => {
+    const totalCategories = data.length;
+    const totalAvgSpend = data.reduce((sum, item) => sum + item.avgSpent, 0);
+
+    const uniqueVendors = new Set();
+    data.forEach(item => {
+      item.vendors.forEach(vendor => uniqueVendors.add(vendor));
+    });
+    const totalNewVendors = uniqueVendors.size;
+
+    return { totalCategories, totalSavings, totalNewVendors, totalAvgSpend };
+  };
+
+  const fetchTotalSavings = async () => {
+    try {
+      const savingsSheetId = "1yTQxwYjcB_VbBaPssF70p9rkU3vFsdGfqYUnWFLCVtY";
+      const savingsSheetName = "Sheet2";
+      const url = `https://docs.google.com/spreadsheets/d/${savingsSheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(savingsSheetName)}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch savings data");
+      }
+
+      const csvText = await response.text();
+      const rows = csvText.split('\n').map(row => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        let i = 0;
+
+        while (i < row.length) {
+          const char = row[i];
+          if (char === '"') {
+            if (inQuotes && row[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.replace(/^"|"$/g, '').trim());
+            current = '';
+          } else {
+            current += char;
+          }
+          i++;
+        }
+        result.push(current.replace(/^"|"$/g, '').trim());
+        return result;
+      });
+
+      // Parse savings data (same logic as TotalSavingsPage)
+      const headers = rows[0];
+      const dataRows = rows.slice(1);
+      console.log("App.js Total rows:", rows.length);
+      console.log("App.js Headers:", headers);
+      console.log("App.js First few data rows:", dataRows.slice(0, 3));
+
+      const processedData = dataRows
+        .filter(row => row.length > 0 && row[0])
+        .map((row, index) => ({
+          savings: parseFloat(String(row[9] || '').replace(/[₹,\s]/g, '')) || 0
+        }))
+        .filter(item => item.savings > 0);
+
+      const totalSavingsAmount = processedData.reduce((sum, item) => sum + item.savings, 0);
+      console.log("App.js Data rows after filtering:", dataRows.length);
+      console.log("App.js Processed Data length:", processedData.length);
+      console.log("App.js Sample processed savings:", processedData.slice(0, 5));
+      console.log("App.js Total Savings Calculation:", totalSavingsAmount);
+      setTotalSavings(totalSavingsAmount);
+    } catch (err) {
+      console.error("Error fetching total savings:", err);
+    }
+  };
+
+  const getMemberData = () => {
+    const maninder = data.filter(item => item.member === 'Maninder');
+    const navneet = data.filter(item => item.member === 'Navneet');
+
+    return {
+      categories: [
+        { name: 'Maninder', value: maninder.length, color: '#3b82f6' },
+        { name: 'Navneet', value: navneet.length, color: '#8b5cf6' }
+      ],
+      spend: [
+        { name: 'Maninder', value: maninder.reduce((sum, item) => sum + item.avgSpent, 0), color: '#3b82f6' },
+        { name: 'Navneet', value: navneet.reduce((sum, item) => sum + item.avgSpent, 0), color: '#8b5cf6' }
+      ]
+    };
+  };
+
+  const getVendorTargetData = () => {
+    const maninder = data.filter(item => item.member === 'Maninder');
+    const navneet = data.filter(item => item.member === 'Navneet');
+
+    const maninderVendors = new Set();
+    maninder.forEach(item => {
+      item.vendors.forEach(vendor => maninderVendors.add(vendor));
+    });
+
+    const navneetVendors = new Set();
+    navneet.forEach(item => {
+      item.vendors.forEach(vendor => navneetVendors.add(vendor));
+    });
+
+    return {
+      maninder: {
+        target: 160,
+        achieved: maninderVendors.size,
+        data: [
+          { name: 'Achieved', value: maninderVendors.size, color: '#10b981' },
+          { name: 'Remaining', value: Math.max(0, 160 - maninderVendors.size), color: '#e5e7eb' }
+        ]
+      },
+      navneet: {
+        target: 52, // 32 domestic + 20 global
+        achieved: navneetVendors.size,
+        data: [
+          { name: 'Achieved', value: navneetVendors.size, color: '#10b981' },
+          { name: 'Remaining', value: Math.max(0, 52 - navneetVendors.size), color: '#e5e7eb' }
+        ]
+      }
+    };
+  };
+
+  const getSavingsData = () => {
+    const maninder = data.filter(item => item.member === 'Maninder');
+    const navneet = data.filter(item => item.member === 'Navneet');
+
+    const maninderSavings = maninder.map(item => ({
+      category: item.category,
+      target: item.targetSavings,
+      achieved: item.cumulativeSavings,
+      vendors: item.vendors.length
+    }));
+
+    const navneetSavings = navneet.map(item => ({
+      category: item.category,
+      target: item.targetSavings,
+      achieved: item.cumulativeSavings,
+      vendors: item.vendors.length
+    }));
+
+    return { maninderSavings, navneetSavings };
+  };
+
+  const metrics = calculateMetrics();
+  const memberData = getMemberData();
+  const vendorTargets = getVendorTargetData();
+  const savingsData = getSavingsData();
+
+  const showPersonProfile = (personName) => {
+    setSelectedPerson(personName);
+    setSelectedCategory(null);
+    setCurrentView('profile');
+  };
+
+  const showCategoryVendors = (categoryName, personName) => {
+    setSelectedPerson(personName);
+    setSelectedCategory(categoryName);
+    setCurrentView('vendors');
+  };
+
+  const backToDashboard = () => {
+    setCurrentView('dashboard');
+    setSelectedPerson(null);
+    setSelectedCategory(null);
+  };
+
+  const backToProfile = () => {
+    setCurrentView('profile');
+    setSelectedCategory(null);
+  };
+
+  // New navigation functions for metric cards
+  const showCategoriesOverview = () => {
+    setCurrentView('categories-overview');
+  };
+
+  const showSpendAnalysis = () => {
+    setCurrentView('spend-analysis');
+  };
+
+  const showSavingsAnalysis = () => {
+    setCurrentView('savings-analysis');
+  };
+
+  const showVendorsOverview = () => {
+    setCurrentView('vendors-overview');
+  };
+
+  const showSavings = () => {
+    setCurrentView('savings');
+  };
+
+  const showTotalSavings = () => {
+    setCurrentView('total-savings');
+  };
+
+  // Categories Overview View
+  if (currentView === 'categories-overview') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={backToDashboard}
+            className="flex items-center gap-2 bg-slate-800 text-white py-3 px-6 rounded-lg hover:bg-slate-700 transition-all shadow-sm hover:shadow-md font-medium"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Dashboard
+          </button>
+
+          <div className="mt-6 bg-white rounded-lg shadow-md p-8 border border-gray-200">
+            <div className="flex items-center gap-6">
+              <div className="bg-slate-100 p-4 rounded-lg">
+                <Package className="w-12 h-12 text-slate-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">
+                  Categories Overview
+                </h1>
+                <p className="text-slate-600 mt-2">Complete breakdown of all procurement categories</p>
+                <div className="flex gap-4 mt-4">
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {metrics.totalCategories} Categories
+                  </span>
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {data.length} Records
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Categories Grid */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+            <Package className="w-8 h-8 text-green-600" />
+            All Procurement Categories
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {data.map((item, index) => (
+              <div
+                key={index}
+                className="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 p-6 cursor-pointer"
+                onClick={() => showCategoryVendors(item.category, item.member)}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-lg text-gray-800">{item.category}</h4>
+                  <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-medium">
+                    #{item.srNo}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 px-3 bg-blue-50 rounded-lg">
+                    <span className="text-blue-700 font-medium text-sm">Member</span>
+                    <span className="font-bold text-blue-800">{item.member}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 px-3 bg-green-50 rounded-lg">
+                    <span className="text-green-700 font-medium text-sm">Spend Value</span>
+                    <span className="font-bold text-green-800">{formatCurrency(item.avgSpent)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 px-3 bg-purple-50 rounded-lg">
+                    <span className="text-purple-700 font-medium text-sm">Vendors</span>
+                    <span className="font-bold text-purple-800">{item.vendors.length}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 px-3 bg-amber-50 rounded-lg">
+                    <span className="text-amber-700 font-medium text-sm">Target Savings</span>
+                    <span className="font-bold text-amber-800">{item.targetSavings}%</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 text-center text-sm text-gray-600 hover:text-blue-600">
+                  Click to view category details →
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Spend Analysis View
+  if (currentView === 'spend-analysis') {
+    const maninderSpend = data.filter(item => item.member === 'Maninder').reduce((sum, item) => sum + item.avgSpent, 0);
+    const navneetSpend = data.filter(item => item.member === 'Navneet').reduce((sum, item) => sum + item.avgSpent, 0);
+
+    const spendByCategory = data.map(item => ({
+      category: item.category,
+      member: item.member,
+      spend: item.avgSpent
+    })).sort((a, b) => b.spend - a.spend);
+
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={backToDashboard}
+            className="flex items-center gap-2 bg-slate-800 text-white py-3 px-6 rounded-lg hover:bg-slate-700 transition-all shadow-sm hover:shadow-md font-medium"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Dashboard
+          </button>
+
+          <div className="mt-6 bg-white rounded-lg shadow-md p-8 border border-gray-200">
+            <div className="flex items-center gap-6">
+              <div className="bg-green-100 p-4 rounded-lg">
+                <TrendingUp className="w-12 h-12 text-green-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">
+                  Spending Analysis
+                </h1>
+                <p className="text-slate-600 mt-2">Detailed spending breakdown across all categories</p>
+                <div className="flex gap-4 mt-4">
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    Total: {formatCurrency(metrics.totalAvgSpend)}
+                  </span>
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {data.length} Categories
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Spending Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Member-wise Spend */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">Spend by Team Member</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Maninder', value: maninderSpend, color: '#3b82f6' },
+                    { name: 'Navneet', value: navneetSpend, color: '#8b5cf6' }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  <Cell fill="#3b82f6" />
+                  <Cell fill="#8b5cf6" />
+                </Pie>
+                <Tooltip formatter={(value) => [formatCurrency(value), 'Spend Value']} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Aggregated Spend Chart */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">Spend Distribution</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={spendByCategory}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" angle={-45} textAnchor="end" height={120} fontSize={11} />
+                <YAxis />
+                <Tooltip
+                  formatter={(value) => [formatCurrency(value), 'Spend Value']}
+                  labelFormatter={(label) => `Category: ${label}`}
+                />
+                <Bar dataKey="spend" fill="#10b981" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Category-wise Spend Table */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Detailed Category Spending</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spend Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Savings Target</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Achieved Savings</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {spendByCategory.map((item, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.member}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{formatCurrency(item.spend)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {data.find(d => d.category === item.category)?.targetSavings || 0}%
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                      {data.find(d => d.category === item.category)?.cumulativeSavings || 0}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Savings Analysis View
+  if (currentView === 'savings-analysis') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={backToDashboard}
+            className="flex items-center gap-2 bg-slate-800 text-white py-3 px-6 rounded-lg hover:bg-slate-700 transition-all shadow-sm hover:shadow-md font-medium"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Dashboard
+          </button>
+
+          <div className="mt-6 bg-white rounded-lg shadow-md p-8 border border-gray-200">
+            <div className="flex items-center gap-6">
+              <div className="bg-blue-100 p-4 rounded-lg">
+                <Target className="w-12 h-12 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">
+                  Savings Analysis
+                </h1>
+                <p className="text-slate-600 mt-2">Comprehensive savings performance and targets</p>
+                <div className="flex gap-4 mt-4">
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {data.length} Categories
+                  </span>
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    Target vs Achieved
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Savings Charts - Same as dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-xl font-semibold text-slate-900 mb-4">Maninder - Savings by Category</h3>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={savingsData.maninderSavings}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" angle={-45} textAnchor="end" height={120} fontSize={11} />
+                <YAxis label={{ value: 'Savings %', angle: -90, position: 'insideLeft' }} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+                          <p className="font-semibold text-gray-800 mb-2">{label}</p>
+                          {payload.map((entry, index) => (
+                            <p key={index} className="text-sm" style={{ color: entry.color }}>
+                              {entry.dataKey === 'target' ? 'Target' : 'Achieved'}: {entry.value}%
+                            </p>
+                          ))}
+                          <p className="text-sm text-blue-600 mt-1 font-medium">
+                            Vendors Added: {data.vendors}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="target"
+                  fill="#64748b"
+                  name="Target %"
+                  cursor="pointer"
+                  onClick={(data, index) => {
+                    const categoryData = savingsData.maninderSavings[index];
+                    if (categoryData && categoryData.category) {
+                      showCategoryVendors(categoryData.category, 'Maninder');
+                    }
+                  }}
+                />
+                <Bar
+                  dataKey="achieved"
+                  fill="#059669"
+                  name="Achieved %"
+                  cursor="pointer"
+                  onClick={(data, index) => {
+                    const categoryData = savingsData.maninderSavings[index];
+                    if (categoryData && categoryData.category) {
+                      showCategoryVendors(categoryData.category, 'Maninder');
+                    }
+                  }}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-xl font-semibold text-slate-900 mb-4">Navneet - Savings by Category</h3>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={savingsData.navneetSavings}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" angle={-45} textAnchor="end" height={120} fontSize={11} />
+                <YAxis label={{ value: 'Savings %', angle: -90, position: 'insideLeft' }} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+                          <p className="font-semibold text-gray-800 mb-2">{label}</p>
+                          {payload.map((entry, index) => (
+                            <p key={index} className="text-sm" style={{ color: entry.color }}>
+                              {entry.dataKey === 'target' ? 'Target' : 'Achieved'}: {entry.value}%
+                            </p>
+                          ))}
+                          <p className="text-sm text-blue-600 mt-1 font-medium">
+                            Vendors Added: {data.vendors}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="target"
+                  fill="#64748b"
+                  name="Target %"
+                  cursor="pointer"
+                  onClick={(data, index) => {
+                    const categoryData = savingsData.navneetSavings[index];
+                    if (categoryData && categoryData.category) {
+                      showCategoryVendors(categoryData.category, 'Navneet');
+                    }
+                  }}
+                />
+                <Bar
+                  dataKey="achieved"
+                  fill="#059669"
+                  name="Achieved %"
+                  cursor="pointer"
+                  onClick={(data, index) => {
+                    const categoryData = savingsData.navneetSavings[index];
+                    if (categoryData && categoryData.category) {
+                      showCategoryVendors(categoryData.category, 'Navneet');
+                    }
+                  }}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Vendors Overview View
+  if (currentView === 'vendors-overview') {
+    // Create a map to track vendors and avoid duplicates
+    const vendorMap = new Map();
+
+    data.forEach(item => {
+      item.vendors.forEach(vendor => {
+        const key = `${item.member}-${vendor}`;
+        if (vendorMap.has(key)) {
+          const vendorData = vendorMap.get(key);
+          if (!vendorData.categories.includes(item.category)) {
+            vendorData.categories.push(item.category);
+            vendorData.count += 1;
+          }
+        } else {
+          vendorMap.set(key, {
+            name: vendor,
+            member: item.member,
+            count: 1,
+            categories: [item.category]
+          });
+        }
+      });
+    });
+
+    // Convert map to array for display
+    const allVendors = Array.from(vendorMap.values());
+
+    const filteredVendors = allVendors.filter(vendor => {
+      const matchesMember = !filterMember || vendor.member === filterMember;
+      const matchesCategory = !filterCategory || vendor.categories.includes(filterCategory);
+      return matchesMember && matchesCategory;
+    });
+
+    const vendorStats = {
+      maninderVendors: allVendors.filter(v => v.member === 'Maninder').length,
+      navneetVendors: allVendors.filter(v => v.member === 'Navneet').length,
+      uniqueVendors: allVendors.length
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={backToDashboard}
+            className="flex items-center gap-2 bg-slate-800 text-white py-3 px-6 rounded-lg hover:bg-slate-700 transition-all shadow-sm hover:shadow-md font-medium"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Dashboard
+          </button>
+
+          <div className="mt-6 bg-white rounded-lg shadow-md p-8 border border-gray-200">
+            <div className="flex items-center gap-6">
+              <div className="bg-purple-100 p-4 rounded-lg">
+                <Users className="w-12 h-12 text-purple-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">
+                  Vendors Overview
+                </h1>
+                <p className="text-slate-600 mt-2">Complete vendor network and distribution</p>
+                <div className="flex gap-4 mt-4">
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {vendorStats.uniqueVendors} Vendor Entries
+                  </span>
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {allVendors.reduce((sum, v) => sum + v.count, 0)} Category Assignments
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Vendor Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <TrendingUp className="w-10 h-10 text-blue-600" />
+              <span className="text-2xl font-bold text-blue-600">{vendorStats.maninderVendors}</span>
+            </div>
+            <p className="text-slate-600 text-sm font-medium mb-1">Maninder's Vendors</p>
+            <p className="text-slate-500 text-sm">Active supplier vendors</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Users className="w-10 h-10 text-purple-600" />
+              <span className="text-2xl font-bold text-purple-600">{vendorStats.navneetVendors}</span>
+            </div>
+            <p className="text-slate-600 text-sm font-medium mb-1">Navneet's Vendors</p>
+            <p className="text-slate-500 text-sm">Active supplier vendors</p>
+          </div>
+        </div>
+
+        {/* Vendor Distribution Table */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Vendor Distribution</h2>
+
+          {/* Filters */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="flex flex-wrap gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Filter by Member:</label>
+                <select
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFilterMember(e.target.value)}
+                  defaultValue=""
+                >
+                  <option value="">All Members</option>
+                  <option value="Maninder">Maninder</option>
+                  <option value="Navneet">Navneet</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Filter by Category:</label>
+                <select
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  defaultValue=""
+                >
+                  <option value="">All Categories</option>
+                  {Array.from(new Set(allVendors.flatMap(v => v.categories))).map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Active filters display */}
+            {(filterMember || filterCategory) && (
+              <div className="flex items-center gap-2 text-sm text-gray-600 border-t border-gray-200 pt-3">
+                <span className="font-medium">Active Filters:</span>
+                {filterMember && (
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                    Member: {filterMember}
+                  </span>
+                )}
+                {filterCategory && (
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                    Category: {filterCategory}
+                  </span>
+                )}
+                <span className="text-gray-500">
+                  ({filteredVendors.length} results)
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage Count</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredVendors.map((vendor, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{vendor.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{vendor.member}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{vendor.count}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      <div className="flex flex-wrap gap-1">
+                        {vendor.categories.map((cat, catIndex) => (
+                          <span key={catIndex} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredVendors.length === 0 && (filterMember || filterCategory) && (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No vendors found matching the selected filters.</p>
+              <button
+                onClick={() => {
+                  setFilterMember('');
+                  setFilterCategory('');
+                  const selectMember = document.querySelector('select:first-child');
+                  const selectCategory = document.querySelector('select:last-child');
+                  if (selectMember) selectMember.value = '';
+                  if (selectCategory) selectCategory.value = '';
+                }}
+                className="mt-2 text-blue-600 hover:text-blue-800 text-sm underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Savings View
+  if (currentView === 'savings') {
+    return <Savings />;
+  }
+
+  // Total Savings View
+  if (currentView === 'total-savings') {
+    return <TotalSavingsPage />;
+  }
+
+  // Vendors View for selected category
+  if (currentView === 'vendors' && selectedCategory && selectedPerson) {
+    const categoryData = data.find(item =>
+      item.member === selectedPerson && item.category === selectedCategory
+    );
+
+    if (!categoryData) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 p-6 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-600 text-lg">Category or person not found</p>
+            <button onClick={backToProfile} className="mt-4 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors">
+              Back to Profile
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 p-6">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={backToProfile}
+            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-6 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl font-semibold"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to {selectedPerson} Profile
+          </button>
+
+          <div className="mt-6 bg-white rounded-2xl shadow-xl p-8 border border-indigo-100">
+            <div className="flex items-center gap-6">
+              <div className="bg-gradient-to-r from-green-500 to-teal-600 p-4 rounded-full shadow-lg">
+                <Users className="w-12 h-12 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">
+                  {selectedCategory} Vendors
+                </h1>
+                <p className="text-gray-600 mt-2 text-lg">
+                  Complete vendor list for {selectedPerson}'s {selectedCategory} category
+                </p>
+                <div className="flex gap-4 mt-4">
+                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {categoryData.vendors.length} Vendors
+                  </span>
+                  <span className="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Target: {categoryData.targetSavings}% Savings
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Category Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <Package className="w-10 h-10 text-blue-600 mb-3" />
+            <p className="text-blue-600 text-sm font-medium mb-1">Part Codes</p>
+            <p className="text-3xl font-bold text-gray-800">{categoryData.noOfPartCodes.toLocaleString()}</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <TrendingUp className="w-10 h-10 text-green-600 mb-3" />
+            <p className="text-green-600 text-sm font-medium mb-1">Annual Spend</p>
+            <p className="text-3xl font-bold text-gray-800">{formatCurrency(categoryData.avgSpent)}</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <Target className="w-10 h-10 text-amber-600 mb-3" />
+            <p className="text-amber-600 text-sm font-medium mb-1">Target Savings</p>
+            <p className="text-3xl font-bold text-gray-800">{categoryData.targetSavings}%</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <Package className="w-10 h-10 text-purple-600 mb-3" />
+            <p className="text-purple-600 text-sm font-medium mb-1">Achieved Savings</p>
+            <p className="text-3xl font-bold text-gray-800">{categoryData.cumulativeSavings}%</p>
+          </div>
+        </div>
+
+        {/* All Vendors List */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
+            <Users className="w-10 h-10 text-green-600" />
+            All Vendors for {selectedCategory}
+          </h2>
+
+          {categoryData.vendors.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">No vendors found for this category</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {categoryData.vendors.map((vendor, index) => (
+                <div
+                  key={index}
+                  className="bg-gradient-to-br from-white via-gray-50 to-green-50 rounded-xl border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 p-6 group"
+                >
+                  <div className="text-center">
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-3 rounded-full shadow-lg inline-block mb-4">
+                      <span className="text-white font-bold text-lg">{(index + 1).toString().padStart(2, '0')}</span>
+                    </div>
+
+                    <h3 className="font-bold text-lg text-gray-800 mb-2 leading-tight">
+                      {vendor}
+                    </h3>
+
+                    <p className="text-gray-600 text-sm mb-3">
+                      Vendor #{index + 1}
+                    </p>
+
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium shadow-sm">
+                        Active Supplier
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-12 h-12 animate-spin text-slate-600 mx-auto mb-4" />
+          <p className="text-slate-700 text-lg">Loading Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-8 max-w-md">
+          <div className="text-red-600 text-center mb-4">
+            <p className="text-xl font-semibold mb-2">Error Loading Data</p>
+            <p className="text-gray-600">{error}</p>
+          </div>
+          <button
+            onClick={loadData}
+            className="w-full bg-slate-800 text-white py-2 px-4 rounded hover:bg-slate-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Profile View
+  if (currentView === 'profile' && selectedPerson) {
+    const personData = data.filter(item => item.member === selectedPerson);
+    const personMetrics = {
+      totalCategories: personData.length,
+      avgSpend: personData.reduce((sum, item) => sum + item.avgSpent, 0),
+      uniqueVendors: new Set(),
+      totalTargetSavings: personData.reduce((sum, item) => sum + item.targetSavings, 0),
+      totalAchievedSavings: personData.reduce((sum, item) => sum + item.cumulativeSavings, 0)
+    };
+
+    personData.forEach(item => {
+      item.vendors.forEach(vendor => personMetrics.uniqueVendors.add(vendor));
+    });
+    personMetrics.uniqueVendors = personMetrics.uniqueVendors.size;
+
+    const avgTargetSavings = personMetrics.totalCategories > 0 ? personMetrics.totalTargetSavings / personMetrics.totalCategories : 0;
+    const avgAchievedSavings = personMetrics.totalCategories > 0 ? personMetrics.totalAchievedSavings / personMetrics.totalCategories : 0;
+
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        {/* Header with Enhanced Design */}
+        <div className="mb-8">
+          <button
+            onClick={backToDashboard}
+            className="flex items-center gap-2 bg-slate-800 text-white py-3 px-6 rounded-lg hover:bg-slate-700 transition-all shadow-sm hover:shadow-md font-medium"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Dashboard
+          </button>
+
+          <div className="mt-6 bg-white rounded-lg shadow-md p-8 border border-gray-200">
+            <div className="flex items-center gap-6">
+              <div className="bg-slate-100 p-4 rounded-lg">
+                <User className="w-12 h-12 text-slate-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">
+                  {selectedPerson} Profile
+                </h1>
+                <p className="text-slate-600 mt-2">Procurement Team Member Performance Overview</p>
+                <div className="flex gap-4 mt-4">
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {personMetrics.totalCategories} Categories
+                  </span>
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded text-sm font-medium">
+                    {personMetrics.uniqueVendors} Vendors
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Key Performance Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Package className="w-10 h-10 text-slate-600" />
+            </div>
+            <p className="text-slate-600 text-sm font-medium mb-1">Categories Managed</p>
+            <p className="text-3xl font-bold text-slate-900">{personMetrics.totalCategories}</p>
+            <p className="text-slate-500 text-sm mt-1">Active responsibilities</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <TrendingUp className="w-10 h-10 text-slate-600" />
+            </div>
+            <p className="text-slate-600 text-sm font-medium mb-1">Total Spend Value</p>
+            <p className="text-3xl font-bold text-slate-900">{formatCurrency(personMetrics.avgSpend)}</p>
+            <p className="text-slate-500 text-sm mt-1">Annual procurement</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Target className="w-10 h-10 text-slate-600" />
+            </div>
+            <p className="text-slate-600 text-sm font-medium mb-1">Avg Target Savings</p>
+            <p className="text-3xl font-bold text-slate-900">{avgTargetSavings.toFixed(1)}%</p>
+            <p className="text-slate-500 text-sm mt-1">Efficiency target</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Users className="w-10 h-10 text-slate-600" />
+            </div>
+            <p className="text-slate-600 text-sm font-medium mb-1">Vendor Network</p>
+            <p className="text-3xl font-bold text-slate-900">{personMetrics.uniqueVendors}</p>
+            <p className="text-slate-500 text-sm mt-1">Suppliers onboarded</p>
+          </div>
+        </div>
+
+
+
+        {/* Detailed Categories Grid */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+            <Package className="w-8 h-8 text-green-600" />
+            Handled Categories Details
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {personData.map((item, index) => (
+              <div
+                key={index}
+                className="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 p-6 cursor-pointer"
+                onClick={() => showCategoryVendors(item.category, selectedPerson)}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-lg text-gray-800">{item.category}</h4>
+                  <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-medium">
+                    #{item.srNo}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 px-3 bg-blue-50 rounded-lg">
+                    <span className="text-blue-700 font-medium text-sm">Part Codes</span>
+                    <span className="font-bold text-blue-800">{item.noOfPartCodes.toLocaleString()}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 px-3 bg-green-50 rounded-lg">
+                    <span className="text-green-700 font-medium text-sm">Annual Spend</span>
+                    <span className="font-bold text-green-800">{formatCurrency(item.avgSpent)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 px-3 bg-amber-50 rounded-lg">
+                    <span className="text-amber-700 font-medium text-sm">Target Savings</span>
+                    <span className="font-bold text-amber-800">{item.targetSavings}%</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 px-3 bg-emerald-50 rounded-lg">
+                    <span className="text-emerald-700 font-medium text-sm">Achieved Savings</span>
+                    <span className="font-bold text-emerald-800">{item.cumulativeSavings}%</span>
+                  </div>
+                </div>
+
+                {item.vendors.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Associated Vendors</p>
+                    <div className="flex flex-wrap gap-2">
+                      {item.vendors.slice(0, 4).map((vendor, vIndex) => (
+                        <span key={vIndex} className="bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 text-xs px-3 py-1.5 rounded-full font-medium shadow-sm">
+                          {vendor}
+                        </span>
+                      ))}
+                      {item.vendors.length > 4 && (
+                        <span className="bg-gray-100 text-gray-600 text-xs px-3 py-1.5 rounded-full font-medium">
+                          +{item.vendors.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dashboard View
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-6">
+      {/* Header */}
+      <div className="mb-10 flex items-center justify-between">
+        <div className="animate-fade-in">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+            Gaurav Maheshwari's Dashboard
+          </h1>
+        </div>
+        <button
+          onClick={loadData}
+          disabled={isRefreshing}
+          className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-xl hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 shadow-lg hover:shadow-xl font-medium"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+          <RefreshCw className={`w-5 h-5 mr-2 inline ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh Data
+        </button>
+      </div>
+
+      {/* Top Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+        <div
+          className="group relative overflow-hidden bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl hover:shadow-2xl border border-white/50 p-6 cursor-pointer transform hover:scale-105 transition-all duration-500 hover:bg-gradient-to-br hover:from-emerald-50 hover:to-green-50 hover:border-emerald-200 animate-slide-in-left stagger-1 professional-card"
+          onClick={showCategoriesOverview}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-green-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2.5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg">
+                <Package className="w-6 h-6 text-white" />
+              </div>
+              <ArrowLeft className="w-5 h-5 text-emerald-400 rotate-180 opacity-60 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-x-1" />
+            </div>
+            <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Total Categories</p>
+            <p className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">{metrics.totalCategories}</p>
+            <p className="text-slate-500 text-xs leading-relaxed">Active procurement categories</p>
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-green-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+          </div>
+        </div>
+
+        <div
+          className="group relative overflow-hidden bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl hover:shadow-2xl border border-white/50 p-6 cursor-pointer transform hover:scale-105 transition-all duration-500 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 hover:border-blue-200 animate-slide-in-left stagger-2 professional-card"
+          onClick={showSpendAnalysis}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2.5 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg">
+                <TrendingUp className="w-6 h-6 text-white" />
+              </div>
+              <ArrowLeft className="w-5 h-5 text-blue-400 rotate-180 opacity-60 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-x-1" />
+            </div>
+            <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Total Annual Spend</p>
+            <p className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">{formatCurrency(metrics.totalAvgSpend)}</p>
+            <p className="text-slate-500 text-xs leading-relaxed">Total annual procurement spend</p>
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+          </div>
+        </div>
+
+        <div
+          className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 p-6 cursor-pointer transform hover:scale-105 transition-all duration-500 hover:bg-gradient-to-br hover:from-purple-50 hover:to-violet-50 hover:border-purple-200"
+          onClick={showTotalSavings}
+        >
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2.5 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg">
+                <Target className="w-6 h-6 text-white" />
+              </div>
+              <ArrowLeft className="w-5 h-5 text-purple-400 rotate-180 opacity-60 group-hover:opacity-100 transition-all duration-300 transform hover:translate-x-1" />
+            </div>
+            <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Total Savings</p>
+            <p className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">{formatCurrency(metrics.totalSavings)}</p>
+            <p className="text-slate-500 text-xs leading-relaxed">Click to view detailed savings →</p>
+          </div>
+        </div>
+
+        <div
+          className="group relative overflow-hidden bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl hover:shadow-2xl border border-white/50 p-6 cursor-pointer transform hover:scale-105 transition-all duration-500 hover:bg-gradient-to-br hover:from-orange-50 hover:to-red-50 hover:border-orange-200 animate-slide-in-right stagger-4 professional-card"
+          onClick={showVendorsOverview}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2.5 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 shadow-lg">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <ArrowLeft className="w-5 h-5 text-orange-400 rotate-180 opacity-60 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-x-1" />
+            </div>
+            <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">New Vendors</p>
+            <p className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">{metrics.totalNewVendors}</p>
+            <p className="text-slate-500 text-xs leading-relaxed">Active supplier vendors</p>
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-orange-500 to-red-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Member Distribution Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <h3 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <Package className="w-5 h-5 text-slate-600" />
+            Categories per Member
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={memberData.categories}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+                cursor="pointer"
+                onClick={(data, index) => {
+                  if (data && data.name) {
+                    showPersonProfile(data.name);
+                  }
+                }}
+              >
+                {memberData.categories.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value, name, props) => [`${value} categories`, name]}
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontWeight: '500'
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <p className="text-center text-slate-600 text-sm mt-4">Click on any segment to view member profile →</p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <h3 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-slate-600" />
+            Average Spend per Member
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={memberData.spend}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value, percent }) => `${name}: ${formatCurrency(value)} (${(percent * 100).toFixed(0)}%)`}
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+                cursor="pointer"
+                onClick={(data, index) => {
+                  if (data && data.name) {
+                    showPersonProfile(data.name);
+                  }
+                }}
+              >
+                {memberData.spend.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+                <Tooltip
+                  formatter={(value) => [formatCurrency(value), 'Spend Value']}
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontWeight: '500'
+                  }}
+                />
+            </PieChart>
+          </ResponsiveContainer>
+          <p className="text-center text-slate-600 text-sm mt-4">Click on any segment to view member profile →</p>
+        </div>
+      </div>
+
+      {/* Target vs Achieved Section */}
+      <div className="mb-12">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-3 flex items-center justify-center gap-3">
+            <Target className="w-8 h-8 text-emerald-600" />
+            Vendor Target vs Achievement
+          </h2>
+          <p className="text-slate-600 text-lg">Performance tracking and goal progress</p>
+        </div>
+
+        {/* Target Summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Maninder Card */}
+          <div
+            onClick={() => showPersonProfile('Maninder')}
+            className="group relative overflow-hidden bg-gradient-to-br from-indigo-50 via-blue-50 to-indigo-100 rounded-2xl shadow-xl hover:shadow-2xl border border-indigo-200 p-8 cursor-pointer transform hover:scale-105 transition-all duration-500"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg">
+                  <Target className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-900 to-blue-900 bg-clip-text text-transparent">Maninder</h3>
+                  <p className="text-indigo-600 text-sm font-medium">Domestic Vendor Network</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 text-center shadow-sm border border-white/50">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-3 h-3 rounded-full bg-indigo-500 mr-2"></div>
+                    <p className="text-indigo-700 text-sm font-semibold uppercase tracking-wide">Target</p>
+                  </div>
+                  <p className="text-4xl font-bold text-indigo-900 mb-2">160</p>
+                  <p className="text-indigo-600 text-xs font-medium">Vendors Required</p>
+                </div>
+
+                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 text-center shadow-sm border border-white/50">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500 mr-2"></div>
+                    <p className="text-emerald-700 text-sm font-semibold uppercase tracking-wide">Achieved</p>
+                  </div>
+                  <p className="text-4xl font-bold text-emerald-900 mb-2">{vendorTargets.maninder.achieved}</p>
+                  <p className="text-emerald-600 text-xs font-medium">{((vendorTargets.maninder.achieved / 160) * 100).toFixed(1)}% Completed</p>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-2 rounded-full text-indigo-600 text-sm font-medium border border-white/50">
+                  <span>View Detailed Profile</span>
+                  <ArrowLeft className="w-4 h-4 rotate-180 transition-transform group-hover:translate-x-1" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Navneet Card */}
+          <div
+            onClick={() => showPersonProfile('Navneet')}
+            className="group relative overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-purple-100 rounded-2xl shadow-xl hover:shadow-2xl border border-purple-200 p-8 cursor-pointer transform hover:scale-105 transition-all duration-500"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg">
+                  <Target className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-900 to-pink-900 bg-clip-text text-transparent">Navneet</h3>
+                  <p className="text-purple-600 text-sm font-medium">Global Vendor Expansion</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white/70 backdrop-blur-sm rounded-lg p-4 text-center shadow-sm border border-white/50">
+                    <p className="text-purple-700 text-xs font-semibold uppercase tracking-wide mb-1">Domestic</p>
+                    <p className="text-2xl font-bold text-purple-900">32</p>
+                    <p className="text-purple-600 text-xs">Target</p>
+                  </div>
+
+                  <div className="bg-white/70 backdrop-blur-sm rounded-lg p-4 text-center shadow-sm border border-white/50">
+                    <p className="text-pink-700 text-xs font-semibold uppercase tracking-wide mb-1">Global</p>
+                    <p className="text-2xl font-bold text-pink-900">20</p>
+                    <p className="text-pink-600 text-xs">Target</p>
+                  </div>
+
+                  <div className="bg-emerald-50/70 backdrop-blur-sm rounded-lg p-4 text-center shadow-sm border border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-green-50">
+                    <p className="text-emerald-700 text-xs font-semibold uppercase tracking-wide mb-1">Achieved</p>
+                    <p className="text-3xl font-bold text-emerald-900">{vendorTargets.navneet.achieved}</p>
+                    <p className="text-emerald-600 text-xs">{((vendorTargets.navneet.achieved / 52) * 100).toFixed(1)}%</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-2 rounded-full text-purple-600 text-sm font-medium border border-white/50">
+                  <span>View Detailed Profile</span>
+                  <ArrowLeft className="w-4 h-4 rotate-180 transition-transform group-hover:translate-x-1" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Vendor Achievement Pie Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-xl font-semibold text-slate-900 mb-4">Maninder - Vendor Progress</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={vendorTargets.maninder.data}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, value }) => `${name}: ${value}`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {vendorTargets.maninder.data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="text-center mt-4">
+              <p className="text-slate-600">Target: 160 | Achieved: {vendorTargets.maninder.achieved}</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-xl font-semibold text-slate-900 mb-4">Navneet - Vendor Progress</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={vendorTargets.navneet.data}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, value }) => `${name}: ${value}`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {vendorTargets.navneet.data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="text-center mt-4">
+              <p className="text-slate-600">Target: 52 (32D + 20G) | Achieved: {vendorTargets.navneet.achieved}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Savings Target vs Achieved */}
+      <div className="mb-12">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-amber-900 to-orange-900 bg-clip-text text-transparent mb-3 flex items-center justify-center gap-3">
+            <Target className="w-8 h-8 text-amber-600" />
+            Savings Analysis by Category
+          </h2>
+          <p className="text-slate-600 text-lg">Target vs Achieved Savings Performance</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Maninder Savings Chart */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 rounded-2xl shadow-xl hover:shadow-2xl border border-amber-200 p-8 transform hover:scale-105 transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg">
+                  <Target className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-amber-900 to-orange-900 bg-clip-text text-transparent">Maninder</h3>
+                  <p className="text-amber-600 text-sm font-medium">Savings Performance by Category</p>
+                </div>
+              </div>
+
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={savingsData.maninderSavings} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid
+                    strokeDasharray="2 4"
+                    stroke="url(#gridGradientManinder)"
+                    strokeOpacity={0.4}
+                    horizontal={true}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="category"
+                    angle={-45}
+                    textAnchor="end"
+                    height={120}
+                    fontSize={10}
+                    stroke="url(#axisGradientManinder)"
+                    fontWeight="600"
+                    tick={{ fill: '#92400e' }}
+                    axisLine={{ stroke: '#f59e0b', strokeWidth: 2 }}
+                  />
+                  <YAxis
+                    label={{
+                      value: 'Savings %',
+                      angle: -90,
+                      position: 'insideLeft',
+                      style: {
+                        textAnchor: 'middle',
+                        fill: '#92400e',
+                        fontWeight: '700',
+                        fontSize: '12px'
+                      }
+                    }}
+                    stroke="url(#axisGradientManinder)"
+                    fontWeight="600"
+                    tick={{ fill: '#92400e' }}
+                    axisLine={{ stroke: '#f59e0b', strokeWidth: 2 }}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(245, 158, 11, 0.1)' }}
+                    contentStyle={{
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(251, 191, 36, 0.05) 100%)',
+                      border: '2px solid #f59e0b',
+                      borderRadius: '16px',
+                      backdropFilter: 'blur(20px)',
+                      boxShadow: '0 20px 40px rgba(245, 158, 11, 0.15), 0 0 20px rgba(245, 158, 11, 0.1)',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                    labelStyle={{ color: '#92400e', fontWeight: 'bold', fontSize: '16px' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 p-6 rounded-xl border-2 border-amber-300 shadow-2xl">
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="w-4 h-4 rounded-full bg-gradient-to-r from-amber-500 to-orange-500"></div>
+                              <p className="font-bold text-amber-900 text-xl">{label}</p>
+                            </div>
+                            <div className="space-y-3">
+                              {payload.map((entry, index) => (
+                                <div key={index} className="flex items-center gap-3">
+                                  <div className={`w-4 h-4 rounded-full ${entry.dataKey === 'target' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-emerald-500 to-green-500'}`}></div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-700">
+                                      {entry.dataKey === 'target' ? 'Target Savings' : 'Achieved Savings'}
+                                    </p>
+                                    <p className="text-2xl font-bold text-gray-900">{entry.value}%</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-amber-300">
+                              <p className="text-sm text-blue-700 font-medium flex items-center gap-2">
+                                <Users className="w-4 h-4" />
+                                Vendors Added: <span className="font-bold">{data.vendors}</span>
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend
+                    wrapperStyle={{
+                      paddingTop: '20px',
+                      fontWeight: '600',
+                      fontSize: '12px'
+                    }}
+                    iconType="rect"
+                  />
+                  <Bar
+                    dataKey="target"
+                    fill="url(#targetGradientManinder)"
+                    name="Target Savings %"
+                    cursor="pointer"
+                    radius={[6, 6, 0, 0]}
+                    animationBegin={0}
+                    animationDuration={1000}
+                    animationEasing="ease-out"
+                    onClick={(data, index) => {
+                      const categoryData = savingsData.maninderSavings[index];
+                      if (categoryData && categoryData.category) {
+                        showCategoryVendors(categoryData.category, 'Maninder');
+                      }
+                    }}
+                  />
+                  <Bar
+                    dataKey="achieved"
+                    fill="url(#achievedGradientManinder)"
+                    name="Achieved Savings %"
+                    cursor="pointer"
+                    radius={[6, 6, 0, 0]}
+                    animationBegin={500}
+                    animationDuration={1000}
+                    animationEasing="ease-out"
+                    onClick={(data, index) => {
+                      const categoryData = savingsData.maninderSavings[index];
+                      if (categoryData && categoryData.category) {
+                        showCategoryVendors(categoryData.category, 'Maninder');
+                      }
+                    }}
+                  />
+
+                  <defs>
+                    <linearGradient id="gridGradientManinder" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="axisGradientManinder" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#92400e"/>
+                      <stop offset="100%" stopColor="#d97706"/>
+                    </linearGradient>
+                    <linearGradient id="targetGradientManinder" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fbbf24" stopOpacity={1}/>
+                      <stop offset="25%" stopColor="#f59e0b" stopOpacity={0.95}/>
+                      <stop offset="50%" stopColor="#d97706" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#92400e" stopOpacity={0.85}/>
+                    </linearGradient>
+                    <linearGradient id="achievedGradientManinder" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34d399" stopOpacity={1}/>
+                      <stop offset="25%" stopColor="#10b981" stopOpacity={0.95}/>
+                      <stop offset="50%" stopColor="#059669" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#047857" stopOpacity={0.85}/>
+                    </linearGradient>
+                    <filter id="glowManinder">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  </defs>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Navneet Savings Chart */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 rounded-2xl shadow-xl hover:shadow-2xl border border-rose-200 p-8 transform hover:scale-105 transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 shadow-lg">
+                  <Target className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-rose-900 to-pink-900 bg-clip-text text-transparent">Navneet</h3>
+                  <p className="text-rose-600 text-sm font-medium">Savings Performance by Category</p>
+                </div>
+              </div>
+
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={savingsData.navneetSavings} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid
+                    strokeDasharray="2 4"
+                    stroke="url(#gridGradientNavneet)"
+                    strokeOpacity={0.4}
+                    horizontal={true}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="category"
+                    angle={-45}
+                    textAnchor="end"
+                    height={120}
+                    fontSize={10}
+                    stroke="url(#axisGradientNavneet)"
+                    fontWeight="600"
+                    tick={{ fill: '#be185d' }}
+                    axisLine={{ stroke: '#ec4899', strokeWidth: 2 }}
+                  />
+                  <YAxis
+                    label={{
+                      value: 'Savings %',
+                      angle: -90,
+                      position: 'insideLeft',
+                      style: {
+                        textAnchor: 'middle',
+                        fill: '#be185d',
+                        fontWeight: '700',
+                        fontSize: '12px'
+                      }
+                    }}
+                    stroke="url(#axisGradientNavneet)"
+                    fontWeight="600"
+                    tick={{ fill: '#be185d' }}
+                    axisLine={{ stroke: '#ec4899', strokeWidth: 2 }}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(236, 72, 153, 0.1)' }}
+                    contentStyle={{
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(236, 72, 153, 0.05) 100%)',
+                      border: '2px solid #ec4899',
+                      borderRadius: '16px',
+                      backdropFilter: 'blur(20px)',
+                      boxShadow: '0 20px 40px rgba(236, 72, 153, 0.15), 0 0 20px rgba(236, 72, 153, 0.1)',
+                      fontSize: '14px',
+                      fontWeight: '600'
+                    }}
+                    labelStyle={{ color: '#be185d', fontWeight: 'bold', fontSize: '16px' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-gradient-to-br from-rose-50 via-pink-50 to-red-50 p-6 rounded-xl border-2 border-rose-300 shadow-2xl">
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="w-4 h-4 rounded-full bg-gradient-to-r from-rose-500 to-pink-500"></div>
+                              <p className="font-bold text-rose-900 text-xl">{label}</p>
+                            </div>
+                            <div className="space-y-3">
+                              {payload.map((entry, index) => (
+                                <div key={index} className="flex items-center gap-3">
+                                  <div className={`w-4 h-4 rounded-full ${entry.dataKey === 'target' ? 'bg-gradient-to-r from-rose-500 to-pink-500' : 'bg-gradient-to-r from-emerald-500 to-green-500'}`}></div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-700">
+                                      {entry.dataKey === 'target' ? 'Target Savings' : 'Achieved Savings'}
+                                    </p>
+                                    <p className="text-2xl font-bold text-gray-900">{entry.value}%</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-rose-300">
+                              <p className="text-sm text-blue-700 font-medium flex items-center gap-2">
+                                <Users className="w-4 h-4" />
+                                Vendors Added: <span className="font-bold">{data.vendors}</span>
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend
+                    wrapperStyle={{
+                      paddingTop: '20px',
+                      fontWeight: '600',
+                      fontSize: '12px'
+                    }}
+                    iconType="rect"
+                  />
+                  <Bar
+                    dataKey="target"
+                    fill="url(#targetGradientNavneet)"
+                    name="Target Savings %"
+                    cursor="pointer"
+                    radius={[6, 6, 0, 0]}
+                    animationBegin={0}
+                    animationDuration={1000}
+                    animationEasing="ease-out"
+                    onClick={(data, index) => {
+                      const categoryData = savingsData.navneetSavings[index];
+                      if (categoryData && categoryData.category) {
+                        showCategoryVendors(categoryData.category, 'Navneet');
+                      }
+                    }}
+                  />
+                  <Bar
+                    dataKey="achieved"
+                    fill="url(#achievedGradientNavneet)"
+                    name="Achieved Savings %"
+                    cursor="pointer"
+                    radius={[6, 6, 0, 0]}
+                    animationBegin={500}
+                    animationDuration={1000}
+                    animationEasing="ease-out"
+                    onClick={(data, index) => {
+                      const categoryData = savingsData.navneetSavings[index];
+                      if (categoryData && categoryData.category) {
+                        showCategoryVendors(categoryData.category, 'Navneet');
+                      }
+                    }}
+                  />
+
+                  <defs>
+                    <linearGradient id="gridGradientNavneet" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#ec4899" stopOpacity={0.3}/>
+                      <stop offset="100%" stopColor="#ec4899" stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="axisGradientNavneet" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#be185d"/>
+                      <stop offset="100%" stopColor="#db2777"/>
+                    </linearGradient>
+                    <linearGradient id="targetGradientNavneet" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fdba74" stopOpacity={1}/>
+                      <stop offset="25%" stopColor="#f97316" stopOpacity={0.95}/>
+                      <stop offset="50%" stopColor="#ea580c" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#c2410c" stopOpacity={0.85}/>
+                    </linearGradient>
+                    <linearGradient id="achievedGradientNavneet" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34d399" stopOpacity={1}/>
+                      <stop offset="25%" stopColor="#10b981" stopOpacity={0.95}/>
+                      <stop offset="50%" stopColor="#059669" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#047857" stopOpacity={0.85}/>
+                    </linearGradient>
+                    <filter id="glowNavneet">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  </defs>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GauravDashboard;

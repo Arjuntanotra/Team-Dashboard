@@ -1,0 +1,18 @@
+TopManager,TopManagerRole,Manager,ManagerRole,TeamMember,MemberRole,Project,NoOfPartCodes,AvgSpendPerYear,Status,Deadline,StartDate
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Asutosh Jena,GET,Switchgear,254,175,In Progress,2025-12-31,2025-10-08
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Asutosh Jena,GET,Lugs & Glands,202,46,In Progress,2025-12-31,2025-10-08
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Vaibhav Roy,Manager,RTD & Thermocouples,18,2,Not Started,2026-01-31,2025-11-01
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Vaibhav Roy,Manager,Cables & Wires,71,1525,In Progress,2025-12-31,2025-10-15
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Rajesh Kumar,GET,Motors,59,181,In Progress,2025-12-31,2025-10-15
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Rajesh Kumar,GET,VFD's & PLC's,77,461,In Progress,2026-01-15,2025-10-20
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Priya Sharma,GET,Refractories,83,704,In Progress,2026-01-31,2025-10-25
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Priya Sharma,GET,Bearings,273,220,In Progress,2025-12-31,2025-10-15
+Gaurav Maheshwari,DGM,Navneet Singh,AGM,Amit Verma,GET,Gaskets,15,2907,In Progress,2026-02-28,2025-11-01
+Gaurav Maheshwari,DGM,Maninder,Manager,Suresh Patel,GET,Pumps,35,304,In Progress,2025-12-31,2025-10-15
+Gaurav Maheshwari,DGM,Maninder,Manager,Suresh Patel,GET,EHS,17,200,Not Started,2026-01-31,2025-11-15
+Gaurav Maheshwari,DGM,Maninder,Manager,Neha Singh,GET,Panels - LT & HT,196,1115,In Progress,2026-01-31,2025-10-20
+Gaurav Maheshwari,DGM,Maninder,Manager,Neha Singh,GET,Transformers,10,520,In Progress,2025-12-31,2025-10-15
+Gaurav Maheshwari,DGM,Maninder,Manager,Rahul Gupta,GET,Cable Tray,17,358,In Progress,2026-01-15,2025-10-25
+Gaurav Maheshwari,DGM,Maninder,Manager,Rahul Gupta,GET,LED Lights & High Mast,30,102,Not Started,2026-02-28,2025-11-20
+Gaurav Maheshwari,DGM,Maninder,Manager,Anjali Desai,GET,UPS Systems & Batteries,37,105,In Progress,2025-12-31,2025-10-18
+Gaurav Maheshwari,DGM,Maninder,Manager,Anjali Desai,GET,Load cells,6,16,Not Started,2026-01-31,2025-11-25
