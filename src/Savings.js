@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Home,
   ChevronRight,
@@ -248,7 +248,7 @@ export default function Savings() {
           <div className="mt-6 bg-white rounded-2xl shadow-lg p-8 border border-green-200">
             <div className="flex items-center gap-6">
               <div className="bg-green-100 p-4 rounded-lg">
-                <DollarSign className="w-12 h-12 text-green-600" />
+                <IndianRupee className="w-12 h-12 text-green-600" />
               </div>
               <div>
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
@@ -333,7 +333,7 @@ export default function Savings() {
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-blue-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-blue-600" />
+                <IndianRupee className="w-6 h-6 text-blue-600" />
               </div>
               <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium">
                 Total

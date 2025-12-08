@@ -46,8 +46,11 @@ const GauravDashboard = () => {
       }
 
       const csvText = await response.text();
-      const rows = csvText.split('\n').map(row => {
-        // Simple CSV parser that handles quoted fields
+
+      // Parse CSV with support for multi-line quoted headers
+      const lines = csvText.split('\n');
+      
+      function parseCSVRow(row) {
         const result = [];
         let current = '';
         let inQuotes = false;
@@ -55,63 +58,107 @@ const GauravDashboard = () => {
 
         while (i < row.length) {
           const char = row[i];
-
           if (char === '"') {
             if (inQuotes && row[i + 1] === '"') {
-              // Escaped quote
               current += '"';
-              i++; // Skip next quote
+              i++;
             } else {
-              // Toggle quote state
               inQuotes = !inQuotes;
             }
           } else if (char === ',' && !inQuotes) {
-            // Field separator
-            result.push(current.replace(/^"|"$/g, '').trim());
-            current = '';
-          } else if (char === '\t' && !inQuotes) {
-            // Handle tab separators as well
-            result.push(current.replace(/^"|"$/g, '').trim());
+            result.push(current.trim());
             current = '';
           } else {
             current += char;
           }
           i++;
         }
-
-        // Add the last field
-        result.push(current.replace(/^"|"$/g, '').trim());
+        result.push(current.trim());
         return result;
-      });
+      }
+
+      // Parse all rows, handling multi-line quoted fields
+      const rows = [];
+      let currentRow = '';
+
+      for (let line of lines) {
+        currentRow += line;
+        const quoteCount = (currentRow.split('"').length - 1);
+
+        if (quoteCount % 2 === 0 && currentRow.trim()) {
+          const parsedRow = parseCSVRow(currentRow);
+          if (parsedRow.length > 0) {
+            rows.push(parsedRow);
+          }
+          currentRow = '';
+        } else {
+          currentRow += '\n';
+        }
+      }
+
+      console.log('✓ Total parsed rows:', rows.length);
 
       if (rows.length < 2) {
         throw new Error("Sheet is empty or has insufficient data");
       }
 
+      // Extract headers and find column indices dynamically
+      const headers = rows[0];
+      console.log('Headers:', headers);
+
+      // Helper function to find column index by searching header names
+      const findColumnIndex = (searchTerms) => {
+        const terms = Array.isArray(searchTerms) ? searchTerms : [searchTerms];
+        for (const term of terms) {
+          const idx = headers.findIndex(h => h.toLowerCase().includes(term.toLowerCase()));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      // Find all vendor columns
+      const vendorIndices = headers
+        .map((h, i) => h.toLowerCase().includes('vendor') ? i : -1)
+        .filter(i => i !== -1);
+
+      const colMap = {
+        srNo: findColumnIndex(['sr. no', 'sr no', 'sno']),
+        manager: findColumnIndex('manager'),
+        member: findColumnIndex(['member', 'team member']),
+        groupCategory: findColumnIndex(['group category', 'group', 'category']),
+        noOfPartCodes: findColumnIndex(['no of part codes', 'part codes']),
+        avgSpent: findColumnIndex(['average spent', 'avg spent']),
+        targetSavings: findColumnIndex(['target savings', 'target']),
+        achievedSavings: findColumnIndex(['achieved savings', 'achieved']),
+      };
+
+      console.log('✓ Column mapping:', colMap);
+      console.log('✓ Vendor column indices:', vendorIndices);
+
       const parsedData = rows.slice(1)
         .filter(row => row.length > 0 && row[0])
         .map(row => {
+          const vendors = [];
+          vendorIndices.forEach(idx => {
+            if (idx < row.length && row[idx] && row[idx].trim()) {
+              vendors.push(row[idx].trim());
+            }
+          });
+
           const item = {
-            srNo: row[0] || '',
-            manager: row[1] || '',
-            member: row[2] || '',
-            group: row[3] || '',  // Group category in column D
-            category: row[3] || '',  // Category is same as group
-            noOfPartCodes: parseInt(row[4]) || 0,
-            avgSpent: parseFloat(row[5]) || 0,
-            targetSavings: parseFloat(row[6]?.replace('%%', '').replace('%', '')) || 20,
-            cumulativeSavings: parseFloat(row[7]?.replace('%', '').replace(',', '').trim()) || 0,
-            vendors: []
+            srNo: colMap.srNo >= 0 ? row[colMap.srNo] : '',
+            manager: colMap.manager >= 0 ? row[colMap.manager] : '',
+            member: colMap.member >= 0 ? row[colMap.member] : '',
+            group: colMap.groupCategory >= 0 ? row[colMap.groupCategory] : '',
+            category: colMap.groupCategory >= 0 ? row[colMap.groupCategory] : '',
+            noOfPartCodes: colMap.noOfPartCodes >= 0 ? parseInt(row[colMap.noOfPartCodes]) || 0 : 0,
+            avgSpent: colMap.avgSpent >= 0 ? parseFloat(row[colMap.avgSpent]) || 0 : 0,
+            targetSavings: colMap.targetSavings >= 0 ? parseFloat(String(row[colMap.targetSavings] || '').replace('%', '')) || 20 : 20,
+            cumulativeSavings: colMap.achievedSavings >= 0 ? parseFloat(String(row[colMap.achievedSavings] || '').replace('%', '')) || 0 : 0,
+            vendors: vendors
           };
 
-          // Data parsing complete
-
-          // Vendors start from column 8 onwards
-          for (let i = 8; i < row.length; i++) {
-            if (row[i] && row[i].trim()) {
-              item.vendors.push(row[i].trim());
-            }
-          }
+          console.log(`[${item.srNo}] ${item.manager} > ${item.member} | Group: "${item.group}" | Vendors: ${item.vendors.length}`);
 
           return item;
         })
@@ -130,11 +177,12 @@ const GauravDashboard = () => {
     const totalCategories = data.length;
     const totalAvgSpend = data.reduce((sum, item) => sum + item.avgSpent, 0);
 
-    const uniqueVendors = new Set();
+    // Calculate total vendor entries (not unique vendors)
+    let totalVendorEntries = 0;
     data.forEach(item => {
-      item.vendors.forEach(vendor => uniqueVendors.add(vendor));
+      totalVendorEntries += item.vendors.length;
     });
-    const totalNewVendors = uniqueVendors.size;
+    const totalNewVendors = totalVendorEntries;
 
     return { totalCategories, totalSavings, totalNewVendors, totalAvgSpend };
   };
@@ -257,19 +305,33 @@ const GauravDashboard = () => {
     const maninder = data.filter(item => item.member === 'Maninder');
     const navneet = data.filter(item => item.member === 'Navneet');
 
-    const maninderSavings = maninder.map(item => ({
-      category: item.category,
-      target: item.targetSavings,
-      achieved: item.cumulativeSavings,
-      vendors: item.vendors.length
-    }));
+    const maninderSavings = maninder.map(item => {
+      const avgSpentLakhs = item.avgSpent || 0;
+      const targetValueLakhs = (avgSpentLakhs * item.targetSavings) / 100;
+      const achievedValueLakhs = (avgSpentLakhs * item.cumulativeSavings) / 100;
+      return {
+        category: item.category,
+        target: item.targetSavings,
+        achieved: item.cumulativeSavings,
+        targetValueLakhs: parseFloat(targetValueLakhs.toFixed(2)),
+        achievedValueLakhs: parseFloat(achievedValueLakhs.toFixed(2)),
+        vendors: item.vendors.length
+      };
+    });
 
-    const navneetSavings = navneet.map(item => ({
-      category: item.category,
-      target: item.targetSavings,
-      achieved: item.cumulativeSavings,
-      vendors: item.vendors.length
-    }));
+    const navneetSavings = navneet.map(item => {
+      const avgSpentLakhs = item.avgSpent || 0;
+      const targetValueLakhs = (avgSpentLakhs * item.targetSavings) / 100;
+      const achievedValueLakhs = (avgSpentLakhs * item.cumulativeSavings) / 100;
+      return {
+        category: item.category,
+        target: item.targetSavings,
+        achieved: item.cumulativeSavings,
+        targetValueLakhs: parseFloat(targetValueLakhs.toFixed(2)),
+        achievedValueLakhs: parseFloat(achievedValueLakhs.toFixed(2)),
+        vendors: item.vendors.length
+      };
+    });
 
     return { maninderSavings, navneetSavings };
   };
@@ -278,6 +340,71 @@ const GauravDashboard = () => {
   const memberData = getMemberData();
   const vendorTargets = getVendorTargetData();
   const savingsData = getSavingsData();
+
+  // Custom label renderer for bar charts showing lakhs value
+  const renderCustomizedLabel = (props) => {
+    const { x, y, width, height, value, dataKey } = props;
+    const payload = props.payload;
+    
+    if (!payload) return null;
+    
+    let displayValue = '';
+    let percentValue = '';
+      let labelColor = '#059669'; // green for achieved
+    
+      if (dataKey === 'target') {
+      displayValue = `₹${payload.targetValueLakhs || 0}L`;
+      percentValue = `${payload.target}%`;
+        labelColor = '#f59e0b'; // orange for target
+    } else if (dataKey === 'achieved') {
+      displayValue = `₹${payload.achievedValueLakhs || 0}L`;
+      percentValue = `${payload.achieved}%`;
+        labelColor = '#059669'; // green for achieved
+    }
+    
+      const labelY = y - 25;
+    
+    return (
+      <g>
+          {/* Background box for visibility */}
+          <rect
+            x={x + width / 2 - 35}
+            y={labelY - 14}
+            width="70"
+            height="28"
+            fill="white"
+            stroke={labelColor}
+            strokeWidth="1.5"
+            rx="4"
+            opacity="0.95"
+          />
+          {/* Lakhs value */}
+        <text
+            x={x + width / 2}
+            y={labelY}
+            fill={labelColor}
+          textAnchor="middle"
+            fontSize="13"
+          fontWeight="700"
+            dominantBaseline="middle"
+        >
+          {displayValue}
+        </text>
+          {/* Percentage value */}
+        <text
+          x={x + width / 2}
+            y={labelY + 12}
+          fill="#6b7280"
+          textAnchor="middle"
+          fontSize="10"
+            fontWeight="600"
+            dominantBaseline="middle"
+        >
+          {percentValue}
+        </text>
+      </g>
+    );
+  };
 
   const showPersonProfile = (personName) => {
     setSelectedPerson(personName);
@@ -588,7 +715,7 @@ const GauravDashboard = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-xl font-semibold text-slate-900 mb-4">Maninder - Savings by Category</h3>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={savingsData.maninderSavings}>
+              <BarChart data={savingsData.maninderSavings} margin={{ top: 60, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="category" angle={-45} textAnchor="end" height={120} fontSize={11} />
                 <YAxis label={{ value: 'Savings %', angle: -90, position: 'insideLeft' }} />
@@ -600,11 +727,16 @@ const GauravDashboard = () => {
                         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
                           <p className="font-semibold text-gray-800 mb-2">{label}</p>
                           {payload.map((entry, index) => (
-                            <p key={index} className="text-sm" style={{ color: entry.color }}>
-                              {entry.dataKey === 'target' ? 'Target' : 'Achieved'}: {entry.value}%
-                            </p>
+                            <div key={index} className="text-sm mb-1">
+                              <p style={{ color: entry.color }} className="font-medium">
+                                {entry.dataKey === 'target' ? 'Target' : 'Achieved'}: {entry.value}%
+                              </p>
+                              <p style={{ color: entry.color }} className="text-xs">
+                                {entry.dataKey === 'target' ? `₹${data.targetValueLakhs}L` : `₹${data.achievedValueLakhs}L`}
+                              </p>
+                            </div>
                           ))}
-                          <p className="text-sm text-blue-600 mt-1 font-medium">
+                          <p className="text-sm text-blue-600 mt-2 pt-2 border-t border-gray-200 font-medium">
                             Vendors Added: {data.vendors}
                           </p>
                         </div>
@@ -616,9 +748,10 @@ const GauravDashboard = () => {
                 <Legend />
                 <Bar
                   dataKey="target"
-                  fill="#64748b"
+                  fill="#f59e0b"
                   name="Target %"
                   cursor="pointer"
+                  label={renderCustomizedLabel}
                   onClick={(data, index) => {
                     const categoryData = savingsData.maninderSavings[index];
                     if (categoryData && categoryData.category) {
@@ -628,9 +761,10 @@ const GauravDashboard = () => {
                 />
                 <Bar
                   dataKey="achieved"
-                  fill="#059669"
+                  fill="#10b981"
                   name="Achieved %"
                   cursor="pointer"
+                  label={renderCustomizedLabel}
                   onClick={(data, index) => {
                     const categoryData = savingsData.maninderSavings[index];
                     if (categoryData && categoryData.category) {
@@ -645,7 +779,7 @@ const GauravDashboard = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-xl font-semibold text-slate-900 mb-4">Navneet - Savings by Category</h3>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={savingsData.navneetSavings}>
+              <BarChart data={savingsData.navneetSavings} margin={{ top: 60, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="category" angle={-45} textAnchor="end" height={120} fontSize={11} />
                 <YAxis label={{ value: 'Savings %', angle: -90, position: 'insideLeft' }} />
@@ -657,11 +791,16 @@ const GauravDashboard = () => {
                         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
                           <p className="font-semibold text-gray-800 mb-2">{label}</p>
                           {payload.map((entry, index) => (
-                            <p key={index} className="text-sm" style={{ color: entry.color }}>
-                              {entry.dataKey === 'target' ? 'Target' : 'Achieved'}: {entry.value}%
-                            </p>
+                            <div key={index} className="text-sm mb-1">
+                              <p style={{ color: entry.color }} className="font-medium">
+                                {entry.dataKey === 'target' ? 'Target' : 'Achieved'}: {entry.value}%
+                              </p>
+                              <p style={{ color: entry.color }} className="text-xs">
+                                {entry.dataKey === 'target' ? `₹${data.targetValueLakhs}L` : `₹${data.achievedValueLakhs}L`}
+                              </p>
+                            </div>
                           ))}
-                          <p className="text-sm text-blue-600 mt-1 font-medium">
+                          <p className="text-sm text-blue-600 mt-2 pt-2 border-t border-gray-200 font-medium">
                             Vendors Added: {data.vendors}
                           </p>
                         </div>
@@ -673,9 +812,10 @@ const GauravDashboard = () => {
                 <Legend />
                 <Bar
                   dataKey="target"
-                  fill="#64748b"
+                  fill="#f59e0b"
                   name="Target %"
                   cursor="pointer"
+                  label={renderCustomizedLabel}
                   onClick={(data, index) => {
                     const categoryData = savingsData.navneetSavings[index];
                     if (categoryData && categoryData.category) {
@@ -685,9 +825,10 @@ const GauravDashboard = () => {
                 />
                 <Bar
                   dataKey="achieved"
-                  fill="#059669"
+                  fill="#10b981"
                   name="Achieved %"
                   cursor="pointer"
+                  label={renderCustomizedLabel}
                   onClick={(data, index) => {
                     const categoryData = savingsData.navneetSavings[index];
                     if (categoryData && categoryData.category) {
@@ -705,27 +846,31 @@ const GauravDashboard = () => {
 
   // Vendors Overview View
   if (currentView === 'vendors-overview') {
-    // Create a map to track vendors and avoid duplicates
+    // Create a map to track vendors and their category assignments (unique by vendor name)
     const vendorMap = new Map();
 
     data.forEach(item => {
       item.vendors.forEach(vendor => {
-        const key = `${item.member}-${vendor}`;
+        const key = vendor.trim(); // Use vendor name as unique key
         if (vendorMap.has(key)) {
           const vendorData = vendorMap.get(key);
           if (!vendorData.categories.includes(item.category)) {
             vendorData.categories.push(item.category);
-            vendorData.count += 1;
           }
         } else {
           vendorMap.set(key, {
-            name: vendor,
+            name: vendor.trim(),
             member: item.member,
-            count: 1,
+            count: 1, // Number of category assignments this vendor has
             categories: [item.category]
           });
         }
       });
+    });
+
+    // Update count after collecting all assignments (actual usage count)
+    vendorMap.forEach(vendorData => {
+      vendorData.count = vendorData.categories.length;
     });
 
     // Convert map to array for display
@@ -1296,7 +1441,7 @@ const GauravDashboard = () => {
               </div>
               <ArrowLeft className="w-5 h-5 text-blue-400 rotate-180 opacity-60 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-x-1" />
             </div>
-            <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Total Annual Spend</p>
+            <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Average Annual Spend</p>
             <p className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">{formatCurrency(metrics.totalAvgSpend)}</p>
             <p className="text-slate-500 text-xs leading-relaxed">Total annual procurement spend</p>
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
@@ -1386,7 +1531,7 @@ const GauravDashboard = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <h3 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-slate-600" />
-            Average Spend per Member
+            Average Annual Spend per Member
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -1614,7 +1759,7 @@ const GauravDashboard = () => {
               </div>
 
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={savingsData.maninderSavings} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={savingsData.maninderSavings} margin={{ top: 60, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid
                     strokeDasharray="2 4"
                     stroke="url(#gridGradientManinder)"
@@ -1681,6 +1826,9 @@ const GauravDashboard = () => {
                                       {entry.dataKey === 'target' ? 'Target Savings' : 'Achieved Savings'}
                                     </p>
                                     <p className="text-2xl font-bold text-gray-900">{entry.value}%</p>
+                                    <p className="text-sm font-semibold" style={{ color: entry.color }}>
+                                      {entry.dataKey === 'target' ? `₹${data.targetValueLakhs}L` : `₹${data.achievedValueLakhs}L`}
+                                    </p>
                                   </div>
                                 </div>
                               ))}
@@ -1714,6 +1862,7 @@ const GauravDashboard = () => {
                     animationBegin={0}
                     animationDuration={1000}
                     animationEasing="ease-out"
+                    label={renderCustomizedLabel}
                     onClick={(data, index) => {
                       const categoryData = savingsData.maninderSavings[index];
                       if (categoryData && categoryData.category) {
@@ -1730,6 +1879,7 @@ const GauravDashboard = () => {
                     animationBegin={500}
                     animationDuration={1000}
                     animationEasing="ease-out"
+                    label={renderCustomizedLabel}
                     onClick={(data, index) => {
                       const categoryData = savingsData.maninderSavings[index];
                       if (categoryData && categoryData.category) {
@@ -1787,7 +1937,7 @@ const GauravDashboard = () => {
               </div>
 
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={savingsData.navneetSavings} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={savingsData.navneetSavings} margin={{ top: 60, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid
                     strokeDasharray="2 4"
                     stroke="url(#gridGradientNavneet)"
@@ -1854,6 +2004,9 @@ const GauravDashboard = () => {
                                       {entry.dataKey === 'target' ? 'Target Savings' : 'Achieved Savings'}
                                     </p>
                                     <p className="text-2xl font-bold text-gray-900">{entry.value}%</p>
+                                    <p className="text-sm font-semibold" style={{ color: entry.color }}>
+                                      {entry.dataKey === 'target' ? `₹${data.targetValueLakhs}L` : `₹${data.achievedValueLakhs}L`}
+                                    </p>
                                   </div>
                                 </div>
                               ))}
@@ -1887,6 +2040,7 @@ const GauravDashboard = () => {
                     animationBegin={0}
                     animationDuration={1000}
                     animationEasing="ease-out"
+                    label={renderCustomizedLabel}
                     onClick={(data, index) => {
                       const categoryData = savingsData.navneetSavings[index];
                       if (categoryData && categoryData.category) {
@@ -1903,6 +2057,7 @@ const GauravDashboard = () => {
                     animationBegin={500}
                     animationDuration={1000}
                     animationEasing="ease-out"
+                    label={renderCustomizedLabel}
                     onClick={(data, index) => {
                       const categoryData = savingsData.navneetSavings[index];
                       if (categoryData && categoryData.category) {

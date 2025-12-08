@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, ArrowLeft, BarChart3, PieChart, Users, Calendar, Target } from "lucide-react";
+import { IndianRupee, TrendingUp, ArrowLeft, BarChart3, PieChart, Users, Calendar, Target } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 export default function TotalSavingsPage() {
@@ -221,7 +221,7 @@ export default function TotalSavingsPage() {
           <div className="mt-6 bg-white rounded-2xl shadow-lg p-8 border border-slate-200">
             <div className="flex items-center gap-6">
               <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-4 rounded-xl shadow-lg">
-                <DollarSign className="w-12 h-12 text-white" />
+                <IndianRupee className="w-12 h-12 text-white" />
               </div>
               <div>
                 <h1 className="text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
@@ -243,7 +243,7 @@ export default function TotalSavingsPage() {
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2.5 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg">
-                  <DollarSign className="w-6 h-6 text-white" />
+                  <IndianRupee className="w-6 h-6 text-white" />
                 </div>
               </div>
               <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Total Savings</p>
@@ -257,7 +257,7 @@ export default function TotalSavingsPage() {
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2.5 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
-                  <DollarSign className="w-6 h-6 text-white" />
+                  <IndianRupee className="w-6 h-6 text-white" />
                 </div>
               </div>
               <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Total in Realised</p>
@@ -271,7 +271,7 @@ export default function TotalSavingsPage() {
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2.5 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
-                  <DollarSign className="w-6 h-6 text-white" />
+                  <IndianRupee className="w-6 h-6 text-white" />
                 </div>
               </div>
               <p className="text-slate-600 text-xs font-semibold uppercase tracking-wide mb-2">Total in Future</p>

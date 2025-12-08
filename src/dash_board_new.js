@@ -231,19 +231,41 @@ export default function TeamDashboard() {
 
       if (!groupCategory) return;
 
-      // Collect vendors dynamically
+      // Collect vendors dynamically starting from column I (9th column, 0-based index 8)
       const vendors = [];
+
+      // First, try the standard New Vendor-1, New Vendor-2, etc.
       let vendorIndex = 1;
+      let vendorColumnsFound = 0;
       while (true) {
-        const vendorKey = `New Vendor -${vendorIndex}`;
+        const vendorKey = `New Vendor-${vendorIndex}`;
         const vendorValue = row[vendorKey];
-        if (vendorValue && vendorValue.trim() !== "") {
+        if (vendorValue && typeof vendorValue === 'string' && vendorValue.trim() !== "") {
           vendors.push(vendorValue.trim());
+          vendorColumnsFound++;
           vendorIndex++;
         } else {
           break;
         }
       }
+
+      // Additionally, scan ALL columns for potential vendor data
+      Object.keys(row).forEach(key => {
+        const value = row[key];
+        if (value && typeof value === 'string' && value.trim() !== "") {
+          // Include columns that start with "New Vendor-" but weren't caught by the loop above
+          if (key.startsWith('New Vendor-') && !vendors.includes(value.trim())) {
+            vendors.push(value.trim());
+          }
+        }
+      });
+
+      // Remove duplicates and filter out non-vendor data
+      const uniqueVendors = [...new Set(vendors.map(v => v.trim()))]
+        .filter(v => v.length > 2 && !/^\d+$/.test(v) && v.toLowerCase() !== 'na' && v !== 'N/A' && v !== '');
+
+      console.log(`Category: ${groupCategory} - Standard vendors: ${vendorColumnsFound}, Additional scan: ${uniqueVendors.length - vendorColumnsFound}, Total: ${uniqueVendors.length}`);
+      console.log(`Vendors: ${uniqueVendors.join(', ')}`);
 
       const categoryData = {
         srNo,
