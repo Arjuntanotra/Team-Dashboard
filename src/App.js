@@ -20,9 +20,6 @@ import {
   Target,
   ArrowLeft,
   User,
-  Mail,
-  Phone,
-  DollarSign,
 } from "lucide-react";
 import Savings from "./Savings";
 import TotalSavingsPage from "./TotalSavingsPage";
@@ -40,6 +37,7 @@ const GauravDashboard = () => {
   const [vendorTargetsData, setVendorTargetsData] = useState({
     maninder: { domestic: 160, global: 0, total: 160 },
     navneet: { domestic: 32, global: 20, total: 52 },
+    mukti: { domestic: 50, global: 30, total: 80 },
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -415,6 +413,9 @@ const GauravDashboard = () => {
         } else if (name.includes("navneet")) {
           updatedTargets.navneet = { domestic, global, total };
           console.log("✓ Updated Navneet targets:", updatedTargets.navneet);
+        } else if (name.includes("mukti")) {
+          updatedTargets.mukti = { domestic, global, total };
+          console.log("✓ Updated Mukti targets:", updatedTargets.mukti);
         }
       });
 
@@ -428,11 +429,13 @@ const GauravDashboard = () => {
   const getMemberData = () => {
     const maninder = data.filter((item) => item.member === "Maninder");
     const navneet = data.filter((item) => item.member === "Navneet");
+    const mukti = data.filter((item) => item.member === "Mukti");
 
     return {
       categories: [
         { name: "Maninder", value: maninder.length, color: "#3b82f6" },
         { name: "Navneet", value: navneet.length, color: "#8b5cf6" },
+        { name: "Mukti", value: mukti.length, color: "#ec4899" },
       ],
       spend: [
         {
@@ -445,6 +448,11 @@ const GauravDashboard = () => {
           value: navneet.reduce((sum, item) => sum + item.avgSpent, 0),
           color: "#8b5cf6",
         },
+        {
+          name: "Mukti",
+          value: mukti.reduce((sum, item) => sum + item.avgSpent, 0),
+          color: "#ec4899",
+        },
       ],
     };
   };
@@ -452,6 +460,7 @@ const GauravDashboard = () => {
   const getVendorTargetData = () => {
     const maninder = data.filter((item) => item.member === "Maninder");
     const navneet = data.filter((item) => item.member === "Navneet");
+    const mukti = data.filter((item) => item.member === "Mukti");
 
     const maninderVendors = new Set();
     maninder.forEach((item) => {
@@ -463,8 +472,14 @@ const GauravDashboard = () => {
       item.vendors.forEach((vendor) => navneetVendors.add(vendor));
     });
 
+    const muktiVendors = new Set();
+    mukti.forEach((item) => {
+      item.vendors.forEach((vendor) => muktiVendors.add(vendor));
+    });
+
     const maninderTarget = vendorTargetsData.maninder.total;
     const navneetTarget = vendorTargetsData.navneet.total;
+    const muktiTarget = vendorTargetsData.mukti.total;
 
     return {
       maninder: {
@@ -495,12 +510,27 @@ const GauravDashboard = () => {
           },
         ],
       },
+      mukti: {
+        target: muktiTarget,
+        achieved: muktiVendors.size,
+        domestic: vendorTargetsData.mukti.domestic,
+        global: vendorTargetsData.mukti.global,
+        data: [
+          { name: "Achieved", value: muktiVendors.size, color: "#10b981" },
+          {
+            name: "Remaining",
+            value: Math.max(0, muktiTarget - muktiVendors.size),
+            color: "#e5e7eb",
+          },
+        ],
+      },
     };
   };
 
   const getSavingsData = () => {
     const maninder = data.filter((item) => item.member === "Maninder");
     const navneet = data.filter((item) => item.member === "Navneet");
+    const mukti = data.filter((item) => item.member === "Mukti");
 
     const maninderSavings = maninder.map((item) => {
       const avgSpentLakhs = item.avgSpent || 0;
@@ -530,7 +560,21 @@ const GauravDashboard = () => {
       };
     });
 
-    return { maninderSavings, navneetSavings };
+    const muktiSavings = mukti.map((item) => {
+      const avgSpentLakhs = item.avgSpent || 0;
+      const targetValueLakhs = (avgSpentLakhs * item.targetSavings) / 100;
+      const achievedValueLakhs = (avgSpentLakhs * item.cumulativeSavings) / 100;
+      return {
+        category: item.category,
+        target: item.targetSavings,
+        achieved: item.cumulativeSavings,
+        targetValueLakhs: parseFloat(targetValueLakhs.toFixed(2)),
+        achievedValueLakhs: parseFloat(achievedValueLakhs.toFixed(2)),
+        vendors: item.vendors.length,
+      };
+    });
+
+    return { maninderSavings, navneetSavings, muktiSavings };
   };
 
   const metrics = calculateMetrics();
@@ -770,6 +814,9 @@ const GauravDashboard = () => {
     const navneetSpend = data
       .filter((item) => item.member === "Navneet")
       .reduce((sum, item) => sum + item.avgSpent, 0);
+    const muktiSpend = data
+      .filter((item) => item.member === "Mukti")
+      .reduce((sum, item) => sum + item.avgSpent, 0);
 
     const spendByCategory = data
       .map((item) => ({
@@ -833,6 +880,7 @@ const GauravDashboard = () => {
                       color: "#3b82f6",
                     },
                     { name: "Navneet", value: navneetSpend, color: "#8b5cf6" },
+                    { name: "Mukti", value: muktiSpend, color: "#ec4899" },
                   ]}
                   cx="50%"
                   cy="50%"
@@ -846,6 +894,7 @@ const GauravDashboard = () => {
                 >
                   <Cell fill="#3b82f6" />
                   <Cell fill="#8b5cf6" />
+                  <Cell fill="#ec4899" />
                 </Pie>
                 <Tooltip
                   formatter={(value) => [formatCurrency(value), "Spend Value"]}
@@ -1213,6 +1262,7 @@ const GauravDashboard = () => {
     const vendorStats = {
       maninderVendors: allVendors.filter((v) => v.member === "Maninder").length,
       navneetVendors: allVendors.filter((v) => v.member === "Navneet").length,
+      muktiVendors: allVendors.filter((v) => v.member === "Mukti").length,
       uniqueVendors: allVendors.length,
     };
 
@@ -2072,7 +2122,7 @@ const GauravDashboard = () => {
         </div>
 
         {/* Target Summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Maninder Card */}
           <div
             onClick={() => showPersonProfile("Maninder")}
@@ -2203,76 +2253,72 @@ const GauravDashboard = () => {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Vendor Achievement Pie Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold text-slate-900 mb-4">
-              Maninder - Vendor Progress
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={vendorTargets.maninder.data}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {vendorTargets.maninder.data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="text-center mt-4">
-              <p className="text-slate-600">
-                Target: {vendorTargets.maninder.target} (
-                {vendorTargets.maninder.domestic}D +{" "}
-                {vendorTargets.maninder.global}G) | Achieved:{" "}
-                {vendorTargets.maninder.achieved}
-              </p>
-            </div>
-          </div>
+          {/* Mukti Card */}
+          <div
+            onClick={() => showPersonProfile("Mukti")}
+            className="group relative overflow-hidden bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 rounded-2xl shadow-xl hover:shadow-2xl border border-emerald-200 p-8 cursor-pointer transform hover:scale-105 transition-all duration-500"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
+                  <Target className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-900 to-teal-900 bg-clip-text text-transparent">
+                    Mukti
+                  </h3>
+                  <p className="text-emerald-600 text-sm font-medium">
+                     Vendor Network
+                  </p>
+                </div>
+              </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold text-slate-900 mb-4">
-              Navneet - Vendor Progress
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={vendorTargets.navneet.data}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {vendorTargets.navneet.data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="text-center mt-4">
-              <p className="text-slate-600">
-                Target: {vendorTargets.navneet.total} (
-                {vendorTargets.navneet.domestic}D +{" "}
-                {vendorTargets.navneet.global}G) | Achieved:{" "}
-                {vendorTargets.navneet.achieved}
-              </p>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 text-center shadow-sm border border-white/50">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500 mr-2"></div>
+                    <p className="text-emerald-700 text-sm font-semibold uppercase tracking-wide">
+                      Total Target
+                    </p>
+                  </div>
+                  <p className="text-4xl font-bold text-emerald-900 mb-2">
+                    {vendorTargets.mukti.total || (vendorTargets.mukti.domestic + vendorTargets.mukti.global)}
+                  </p>
+                  <p className="text-emerald-600 text-xs font-medium">
+                    {vendorTargets.mukti.domestic}D + {vendorTargets.mukti.global}G
+                  </p>
+                </div>
+
+                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 text-center shadow-sm border border-white/50">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                    <p className="text-green-700 text-sm font-semibold uppercase tracking-wide">
+                      Achieved
+                    </p>
+                  </div>
+                  <p className="text-4xl font-bold text-green-900 mb-2">
+                    {vendorTargets.mukti.achieved}
+                  </p>
+                  <p className="text-green-600 text-xs font-medium">
+                    {(((vendorTargets.mukti.achieved) / (vendorTargets.mukti.total || (vendorTargets.mukti.domestic + vendorTargets.mukti.global))) * 100).toFixed(1)}
+                    % Completed
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-2 rounded-full text-emerald-600 text-sm font-medium border border-white/50">
+                  <span>View Detailed Profile</span>
+                  <ArrowLeft className="w-4 h-4 rotate-180 transition-transform group-hover:translate-x-1" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+
       </div>
 
       {/* Savings Target vs Achieved */}
